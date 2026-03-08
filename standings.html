@@ -510,17 +510,22 @@ function updateTimestamp() {
 function applyData(data) {
   if (!data) return;
 
-  // Teams
+  // Reset logos on each load
+  Object.keys(teamLogos).forEach(k => delete teamLogos[k]);
   if (data.teams && Array.isArray(data.teams)) {
     TEAMS.length = 0;
-    data.teams.forEach(t => TEAMS.push({ name: t.name, gp:0, w:0, l:0, t:0, rs:0, ra:0 }));
+    data.teams.forEach(t => {
+      TEAMS.push({ name: t.name, gp:0, w:0, l:0, t:0, rs:0, ra:0 });
+      // Extract logo from team object if present
+      if (t.logo) teamLogos[t.name] = t.logo;
+    });
   }
   // Games
   if (data.games && Array.isArray(data.games)) {
     games.length = 0;
     data.games.forEach(g => games.push(g));
   }
-  // Logos
+  // Logos map (overrides team-level logos if present)
   if (data.teamLogos) {
     Object.assign(teamLogos, data.teamLogos);
   }
