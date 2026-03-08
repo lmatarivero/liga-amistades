@@ -2727,12 +2727,16 @@ async function initData() {
     populateForm();
   }
   if (window.loadFromFirebase) {
+    console.log('Loading from Firebase...');
     const fbData = await window.loadFromFirebase();
+    console.log('Firebase data:', fbData ? 'found' : 'null');
     if (fbData) {
       window._applyFirebaseData(fbData);
-      // Also update localStorage with cloud data
       try { localStorage.setItem(STORAGE_KEY, JSON.stringify(fbData)); } catch(e) {}
+      console.log('Firebase data applied');
     }
+  } else {
+    console.log('loadFromFirebase not available');
   }
   _fbSyncReady = true;
   initTheme();
