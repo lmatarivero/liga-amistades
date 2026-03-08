@@ -2455,7 +2455,20 @@ try {
 window.saveToFirebase = async function(data) {
   if (!LIGA_DOC_REF) return;
   try {
-    await LIGA_DOC_REF.set(data);
+    // Strip base64 logos — only save URL logos to stay under Firestore 1MB limit
+    const fbData = { ...data };
+    const cleanLogos = {};
+    Object.keys(fbData.teamLogos || {}).forEach(k => {
+      const v = fbData.teamLogos[k];
+      if (v && !v.startsWith('data:')) cleanLogos[k] = v; // only URLs
+    });
+    fbData.teamLogos = cleanLogos;
+    // Strip base64 league logo too
+    if (fbData.config && fbData.config.leagueLogo && fbData.config.leagueLogo.startsWith('data:')) {
+      fbData.config = { ...fbData.config, leagueLogo: null };
+    }
+    await LIGA_DOC_REF.set(fbData);
+    console.log('Firebase saved OK');
   } catch(e) {
     console.error('Firebase save error:', e);
   }
