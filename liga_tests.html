@@ -1,0 +1,684 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Liga Amistades — Unit Tests</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Courier New', monospace; background: #0d1117; color: #e6edf3; padding: 24px; }
+    h1 { color: #e8c84a; font-size: 1.4rem; margin-bottom: 4px; }
+    .subtitle { color: #8b949e; font-size: 0.85rem; margin-bottom: 24px; }
+    .suite { margin-bottom: 24px; }
+    .suite-title { color: #58a6ff; font-size: 1rem; font-weight: bold; border-bottom: 1px solid #30363d; padding-bottom: 6px; margin-bottom: 10px; }
+    .test { display: flex; align-items: flex-start; gap: 10px; padding: 5px 0; font-size: 0.82rem; border-bottom: 1px solid #161b22; }
+    .icon { flex-shrink: 0; font-size: 0.95rem; }
+    .test-name { flex: 1; color: #e6edf3; }
+    .test-detail { color: #8b949e; font-size: 0.75rem; margin-top: 2px; }
+    .fail .test-name { color: #ff7b72; }
+    .fail .test-detail { color: #ff7b72; opacity: 0.8; }
+    .summary { margin-top: 24px; padding: 16px; border-radius: 8px; font-size: 0.9rem; }
+    .summary.pass { background: #0d2a1a; border: 1px solid #238636; color: #3fb950; }
+    .summary.fail { background: #2a0d0d; border: 1px solid #da3633; color: #ff7b72; }
+    .summary .count { font-size: 1.5rem; font-weight: bold; }
+    .bar { height: 6px; background: #21262d; border-radius: 3px; margin-top: 10px; overflow: hidden; }
+    .bar-fill { height: 100%; background: #238636; border-radius: 3px; transition: width 0.4s; }
+    .bar-fill.has-fail { background: linear-gradient(90deg, #238636, #da3633); }
+  </style>
+</head>
+<body>
+
+<h1>⚾ Liga Amistades — Unit Tests</h1>
+<p class="subtitle" id="subtitle">Ejecutando tests...</p>
+
+<div id="results"></div>
+<div id="summary"></div>
+
+<script>
+// ─────────────────────────────────────────────────────────────────────────────
+// TEST FRAMEWORK
+// ─────────────────────────────────────────────────────────────────────────────
+
+const _tests = [];
+let _currentSuite = null;
+
+function describe(name, fn) {
+  _currentSuite = { name, tests: [] };
+  _tests.push(_currentSuite);
+  fn();
+  _currentSuite = null;
+}
+
+function it(name, fn) {
+  const suite = _currentSuite;
+  try {
+    fn();
+    suite.tests.push({ name, pass: true });
+  } catch (e) {
+    suite.tests.push({ name, pass: false, error: e.message });
+  }
+}
+
+function expect(actual) {
+  return {
+    toBe(expected) {
+      if (actual !== expected)
+        throw new Error(`Expected ${JSON.stringify(expected)}, got ${JSON.stringify(actual)}`);
+    },
+    toBeCloseTo(expected, precision = 4) {
+      if (Math.abs(actual - expected) > Math.pow(10, -precision))
+        throw new Error(`Expected ≈${expected}, got ${actual}`);
+    },
+    toEqual(expected) {
+      const a = JSON.stringify(actual), b = JSON.stringify(expected);
+      if (a !== b) throw new Error(`Expected ${b}, got ${a}`);
+    },
+    toBeGreaterThan(expected) {
+      if (!(actual > expected))
+        throw new Error(`Expected ${actual} > ${expected}`);
+    },
+    toBeLessThan(expected) {
+      if (!(actual < expected))
+        throw new Error(`Expected ${actual} < ${expected}`);
+    },
+    toContain(item) {
+      if (!actual.includes(item))
+        throw new Error(`Expected array to contain ${JSON.stringify(item)}`);
+    },
+    toBeTruthy() {
+      if (!actual) throw new Error(`Expected truthy, got ${actual}`);
+    },
+    toBeFalsy() {
+      if (actual) throw new Error(`Expected falsy, got ${actual}`);
+    },
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PRODUCTION CODE (copied from liga_restored.html — pure logic only)
+// ─────────────────────────────────────────────────────────────────────────────
+
+// These are the exact functions from the app, extracted for isolated testing.
+// We use a local `games` array and `TEAMS` array to avoid DOM dependencies.
+
+let games = [];
+let TEAMS = [];
+
+function _makeTeam(name, gp=0, w=0, l=0, t=0, rs=0, ra=0) {
+  return { name, gp, w, l, t, rs, ra };
+}
+
+function calcPTS(t)  { return t.w * 3 + t.t * 1; }
+function calcPCT(t)  { return t.gp > 0 ? t.w / t.gp : 0; }
+function calcRD(t)   { return t.rs - t.ra; }
+
+function calcGB(team, leader) {
+  return ((leader.w - team.w) + (team.l - leader.l)) / 2;
+}
+
+function h2hWinPct(team, opponents) {
+  let w = 0, l = 0, t = 0;
+  games.forEach(g => {
+    const involvedT1 = g.t1 === team.name && opponents.includes(g.t2);
+    const involvedT2 = g.t2 === team.name && opponents.includes(g.t1);
+    if (involvedT1) {
+      if (g.s1 > g.s2) w++;
+      else if (g.s1 < g.s2) l++;
+      else t++;
+    }
+    if (involvedT2) {
+      if (g.s2 > g.s1) w++;
+      else if (g.s2 < g.s1) l++;
+      else t++;
+    }
+  });
+  const gp = w + l + t;
+  return gp > 0 ? (w + t * 0.5) / gp : 0;
+}
+
+function getSorted(seasonComplete = false) {
+  const byPts = [...TEAMS].sort((a, b) => calcPTS(b) - calcPTS(a));
+  const result = [];
+  let i = 0;
+  while (i < byPts.length) {
+    let j = i;
+    while (j < byPts.length && calcPTS(byPts[j]) === calcPTS(byPts[i])) j++;
+    const tiedGroup = byPts.slice(i, j);
+    if (tiedGroup.length === 1) {
+      result.push(...tiedGroup);
+    } else {
+      const opponentNames = tiedGroup.map(t => t.name);
+      tiedGroup.sort((a, b) => {
+        if (seasonComplete) {
+          const h2hDiff = h2hWinPct(b, opponentNames.filter(n => n !== b.name))
+                        - h2hWinPct(a, opponentNames.filter(n => n !== a.name));
+          if (Math.abs(h2hDiff) > 0.0001) return h2hDiff;
+        }
+        const pctDiff = calcPCT(b) - calcPCT(a);
+        if (Math.abs(pctDiff) > 0.0001) return pctDiff;
+        return calcRD(b) - calcRD(a);
+      });
+      result.push(...tiedGroup);
+    }
+    i = j;
+  }
+  return result;
+}
+
+function rebuildStandingsFromGames() {
+  TEAMS.forEach(t => { t.gp = 0; t.w = 0; t.l = 0; t.t = 0; t.rs = 0; t.ra = 0; });
+  games.forEach(g => {
+    const t1 = TEAMS.find(t => t.name === g.t1);
+    const t2 = TEAMS.find(t => t.name === g.t2);
+    if (!t1 || !t2) return;
+    t1.gp++; t2.gp++;
+    t1.rs += g.s1; t1.ra += g.s2;
+    t2.rs += g.s2; t2.ra += g.s1;
+    if (g.s1 > g.s2)      { t1.w++; t2.l++; }
+    else if (g.s1 < g.s2) { t2.w++; t1.l++; }
+    else                   { t1.t++; t2.t++; }
+  });
+}
+
+function applyResult(team, scored, allowed) {
+  team.gp += 1;
+  team.rs += scored;
+  team.ra += allowed;
+  if (scored > allowed)       team.w += 1;
+  else if (scored === allowed) team.t += 1;
+  else                         team.l += 1;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// HELPERS
+// ─────────────────────────────────────────────────────────────────────────────
+
+function resetState() {
+  TEAMS = [];
+  games = [];
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TESTS
+// ─────────────────────────────────────────────────────────────────────────────
+
+// ── SUITE 1: calcPTS ─────────────────────────────────────────────────────────
+describe('calcPTS — Puntos', () => {
+  it('3 pts por victoria', () => {
+    const t = _makeTeam('A', 1, 1, 0, 0);
+    expect(calcPTS(t)).toBe(3);
+  });
+  it('1 pt por empate', () => {
+    const t = _makeTeam('A', 1, 0, 0, 1);
+    expect(calcPTS(t)).toBe(1);
+  });
+  it('0 pts por derrota', () => {
+    const t = _makeTeam('A', 1, 0, 1, 0);
+    expect(calcPTS(t)).toBe(0);
+  });
+  it('combinación: 2W + 1T + 1L = 7 pts', () => {
+    const t = _makeTeam('A', 4, 2, 1, 1);
+    expect(calcPTS(t)).toBe(7);
+  });
+  it('equipo sin juegos = 0 pts', () => {
+    const t = _makeTeam('A');
+    expect(calcPTS(t)).toBe(0);
+  });
+});
+
+// ── SUITE 2: calcPCT ─────────────────────────────────────────────────────────
+describe('calcPCT — Win Percentage', () => {
+  it('invicto = 1.000', () => {
+    const t = _makeTeam('A', 4, 4, 0, 0);
+    expect(calcPCT(t)).toBe(1);
+  });
+  it('sin victorias = 0.000', () => {
+    const t = _makeTeam('A', 4, 0, 4, 0);
+    expect(calcPCT(t)).toBe(0);
+  });
+  it('.500 con 2W-2L', () => {
+    const t = _makeTeam('A', 4, 2, 2, 0);
+    expect(calcPCT(t)).toBe(0.5);
+  });
+  it('sin juegos = 0 (no divide por cero)', () => {
+    const t = _makeTeam('A');
+    expect(calcPCT(t)).toBe(0);
+  });
+});
+
+// ── SUITE 3: calcRD ──────────────────────────────────────────────────────────
+describe('calcRD — Run Differential', () => {
+  it('RS > RA → positivo', () => {
+    const t = _makeTeam('A', 1, 1, 0, 0, 10, 3);
+    expect(calcRD(t)).toBe(7);
+  });
+  it('RS < RA → negativo', () => {
+    const t = _makeTeam('A', 1, 0, 1, 0, 2, 9);
+    expect(calcRD(t)).toBe(-7);
+  });
+  it('RS = RA → 0', () => {
+    const t = _makeTeam('A', 1, 0, 0, 1, 5, 5);
+    expect(calcRD(t)).toBe(0);
+  });
+});
+
+// ── SUITE 4: calcGB ──────────────────────────────────────────────────────────
+describe('calcGB — Games Behind', () => {
+  it('líder tiene 0 GB', () => {
+    const leader = _makeTeam('L', 3, 3, 0, 0);
+    expect(calcGB(leader, leader)).toBe(0);
+  });
+  it('1 victoria atrás = 0.5 GB', () => {
+    const leader = _makeTeam('L', 2, 2, 0, 0);
+    const team   = _makeTeam('T', 1, 1, 0, 0);  // only 1 game played, same L
+    expect(calcGB(team, leader)).toBe(0.5);
+  });
+  it('formula clásica: ((dW) + (dL)) / 2', () => {
+    // leader: 6W 2L, team: 4W 4L → GB = ((6-4)+(4-2))/2 = 2
+    const leader = _makeTeam('L', 8, 6, 2, 0);
+    const team   = _makeTeam('T', 8, 4, 4, 0);
+    expect(calcGB(team, leader)).toBe(2);
+  });
+  it('GB puede ser 0.5 (magic number)', () => {
+    const leader = _makeTeam('L', 5, 5, 0, 0);
+    const team   = _makeTeam('T', 4, 4, 0, 0);
+    expect(calcGB(team, leader)).toBe(0.5);
+  });
+});
+
+// ── SUITE 5: h2hWinPct ──────────────────────────────────────────────────────
+describe('h2hWinPct — Head-to-Head Win Percentage', () => {
+  it('sin enfrentamientos = 0', () => {
+    resetState();
+    const teamA = _makeTeam('A');
+    TEAMS = [teamA, _makeTeam('B')];
+    expect(h2hWinPct(teamA, ['B'])).toBe(0);
+  });
+  it('victoria como t1 = 1.000', () => {
+    resetState();
+    games = [{ jornada: 1, t1: 'A', s1: 5, s2: 2, t2: 'B' }];
+    TEAMS = [_makeTeam('A'), _makeTeam('B')];
+    const teamA = TEAMS[0];
+    expect(h2hWinPct(teamA, ['B'])).toBe(1);
+  });
+  it('derrota como t2 = 0.000', () => {
+    resetState();
+    games = [{ jornada: 1, t1: 'A', s1: 5, s2: 2, t2: 'B' }];
+    TEAMS = [_makeTeam('A'), _makeTeam('B')];
+    const teamB = TEAMS[1];
+    expect(h2hWinPct(teamB, ['A'])).toBe(0);
+  });
+  it('empate = 0.500', () => {
+    resetState();
+    games = [{ jornada: 1, t1: 'A', s1: 5, s2: 5, t2: 'B' }];
+    TEAMS = [_makeTeam('A'), _makeTeam('B')];
+    const teamA = TEAMS[0];
+    expect(h2hWinPct(teamA, ['B'])).toBe(0.5);
+  });
+  it('1W-1L = 0.500', () => {
+    resetState();
+    games = [
+      { jornada: 1, t1: 'A', s1: 5, s2: 2, t2: 'B' },
+      { jornada: 2, t1: 'A', s1: 1, s2: 3, t2: 'B' },
+    ];
+    TEAMS = [_makeTeam('A'), _makeTeam('B')];
+    const teamA = TEAMS[0];
+    expect(h2hWinPct(teamA, ['B'])).toBeCloseTo(0.5);
+  });
+  it('solo cuenta juegos contra equipos especificados', () => {
+    resetState();
+    // A beats B but loses to C; only check vs B
+    games = [
+      { jornada: 1, t1: 'A', s1: 5, s2: 2, t2: 'B' },
+      { jornada: 1, t1: 'A', s1: 1, s2: 8, t2: 'C' },
+    ];
+    TEAMS = [_makeTeam('A'), _makeTeam('B'), _makeTeam('C')];
+    const teamA = TEAMS[0];
+    expect(h2hWinPct(teamA, ['B'])).toBe(1); // Only B counts
+  });
+});
+
+// ── SUITE 6: rebuildStandingsFromGames ───────────────────────────────────────
+describe('rebuildStandingsFromGames — Reconstrucción de standings', () => {
+  it('victoria: t1 suma W, t2 suma L', () => {
+    resetState();
+    TEAMS = [_makeTeam('A'), _makeTeam('B')];
+    games = [{ jornada: 1, t1: 'A', s1: 5, s2: 2, t2: 'B' }];
+    rebuildStandingsFromGames();
+    expect(TEAMS[0].w).toBe(1);
+    expect(TEAMS[0].l).toBe(0);
+    expect(TEAMS[1].w).toBe(0);
+    expect(TEAMS[1].l).toBe(1);
+  });
+  it('empate: ambos suman T', () => {
+    resetState();
+    TEAMS = [_makeTeam('A'), _makeTeam('B')];
+    games = [{ jornada: 1, t1: 'A', s1: 5, s2: 5, t2: 'B' }];
+    rebuildStandingsFromGames();
+    expect(TEAMS[0].t).toBe(1);
+    expect(TEAMS[1].t).toBe(1);
+    expect(TEAMS[0].w).toBe(0);
+    expect(TEAMS[1].w).toBe(0);
+  });
+  it('RS y RA se asignan correctamente', () => {
+    resetState();
+    TEAMS = [_makeTeam('A'), _makeTeam('B')];
+    games = [{ jornada: 1, t1: 'A', s1: 10, s2: 3, t2: 'B' }];
+    rebuildStandingsFromGames();
+    expect(TEAMS[0].rs).toBe(10);
+    expect(TEAMS[0].ra).toBe(3);
+    expect(TEAMS[1].rs).toBe(3);
+    expect(TEAMS[1].ra).toBe(10);
+  });
+  it('GP se incrementa para ambos equipos', () => {
+    resetState();
+    TEAMS = [_makeTeam('A'), _makeTeam('B')];
+    games = [
+      { jornada: 1, t1: 'A', s1: 5, s2: 2, t2: 'B' },
+      { jornada: 2, t1: 'A', s1: 3, s2: 1, t2: 'B' },
+    ];
+    rebuildStandingsFromGames();
+    expect(TEAMS[0].gp).toBe(2);
+    expect(TEAMS[1].gp).toBe(2);
+  });
+  it('reset limpia stats previas', () => {
+    resetState();
+    TEAMS = [_makeTeam('A', 5, 4, 1, 0, 30, 10), _makeTeam('B', 5, 1, 4, 0, 10, 30)];
+    games = [{ jornada: 1, t1: 'A', s1: 5, s2: 2, t2: 'B' }];
+    rebuildStandingsFromGames();
+    expect(TEAMS[0].gp).toBe(1); // Reset, not added to old value
+    expect(TEAMS[0].w).toBe(1);
+  });
+  it('ignora juegos con equipos desconocidos', () => {
+    resetState();
+    TEAMS = [_makeTeam('A')];
+    games = [{ jornada: 1, t1: 'A', s1: 5, s2: 2, t2: 'FANTASMA' }];
+    rebuildStandingsFromGames();
+    expect(TEAMS[0].gp).toBe(0); // Game skipped
+  });
+});
+
+// ── SUITE 7: getSorted — Ordenamiento ────────────────────────────────────────
+describe('getSorted — Clasificación', () => {
+  it('más puntos → posición más alta', () => {
+    resetState();
+    TEAMS = [
+      _makeTeam('Fenix',   3, 3, 0, 0),   // 9 pts
+      _makeTeam('Royals',  3, 1, 2, 0),   // 3 pts
+      _makeTeam('Marlins', 3, 2, 1, 0),   // 6 pts
+    ];
+    const sorted = getSorted();
+    expect(sorted[0].name).toBe('Fenix');
+    expect(sorted[1].name).toBe('Marlins');
+    expect(sorted[2].name).toBe('Royals');
+  });
+
+  it('empate en PTS → desempate por PCT', () => {
+    resetState();
+    // Same PTS (6), but A has higher PCT (3W/3GP=1.000 vs 2W/4GP=.500)
+    TEAMS = [
+      _makeTeam('A', 3, 2, 1, 0, 15, 10),  // 6 pts, PCT .667
+      _makeTeam('B', 4, 2, 2, 0, 14, 14),  // 6 pts, PCT .500
+    ];
+    const sorted = getSorted();
+    expect(sorted[0].name).toBe('A');
+  });
+
+  it('empate en PTS y PCT → desempate por RD', () => {
+    resetState();
+    // Same PTS, same PCT (both 2W/4GP), but different RD
+    TEAMS = [
+      _makeTeam('A', 4, 2, 2, 0, 10, 12),  // 6 pts, RD -2
+      _makeTeam('B', 4, 2, 2, 0, 15, 10),  // 6 pts, RD +5
+    ];
+    const sorted = getSorted();
+    expect(sorted[0].name).toBe('B');
+  });
+
+  it('con H2H (temporada completa) → desempate por H2H primero', () => {
+    resetState();
+    // Same PTS, same PCT, same RD — but A beat B head-to-head
+    TEAMS = [
+      _makeTeam('A', 4, 2, 2, 0, 20, 20),
+      _makeTeam('B', 4, 2, 2, 0, 20, 20),
+    ];
+    games = [
+      { jornada: 11, t1: 'A', s1: 5, s2: 3, t2: 'B' }, // A wins H2H
+    ];
+    const sorted = getSorted(true); // seasonComplete = true
+    expect(sorted[0].name).toBe('A');
+  });
+
+  it('un solo equipo → devuelve ese equipo', () => {
+    resetState();
+    TEAMS = [_makeTeam('Solo', 2, 2, 0, 0)];
+    const sorted = getSorted();
+    expect(sorted.length).toBe(1);
+    expect(sorted[0].name).toBe('Solo');
+  });
+
+  it('equipos sin juegos → orden estable (todos 0 pts)', () => {
+    resetState();
+    TEAMS = [_makeTeam('A'), _makeTeam('B'), _makeTeam('C')];
+    const sorted = getSorted();
+    expect(sorted.length).toBe(3);
+    expect(calcPTS(sorted[0])).toBe(0);
+  });
+});
+
+// ── SUITE 8: applyResult ─────────────────────────────────────────────────────
+describe('applyResult — Aplicar resultado individual', () => {
+  it('victoria incrementa W y GP', () => {
+    const t = _makeTeam('A');
+    applyResult(t, 10, 5);
+    expect(t.w).toBe(1);
+    expect(t.gp).toBe(1);
+    expect(t.l).toBe(0);
+  });
+  it('derrota incrementa L y GP', () => {
+    const t = _makeTeam('A');
+    applyResult(t, 3, 8);
+    expect(t.l).toBe(1);
+    expect(t.w).toBe(0);
+    expect(t.gp).toBe(1);
+  });
+  it('empate incrementa T y GP', () => {
+    const t = _makeTeam('A');
+    applyResult(t, 5, 5);
+    expect(t.t).toBe(1);
+    expect(t.w).toBe(0);
+    expect(t.l).toBe(0);
+  });
+  it('RS y RA se acumulan correctamente', () => {
+    const t = _makeTeam('A');
+    applyResult(t, 10, 3);
+    applyResult(t, 7, 4);
+    expect(t.rs).toBe(17);
+    expect(t.ra).toBe(7);
+  });
+});
+
+// ── SUITE 9: Liga Menor — Datos reales jornadas 1-2 ─────────────────────────
+describe('Datos reales — Jornadas 1 & 2', () => {
+  const REAL_GAMES = [
+    { jornada: 1, t1: 'RL',              s1: 10, s2: 10, t2: 'Marlins' },
+    { jornada: 1, t1: 'Masacre',         s1: 10, s2: 11, t2: 'Angelinos' },
+    { jornada: 1, t1: 'Dream Team',      s1: 29, s2: 17, t2: 'Bufalos' },
+    { jornada: 1, t1: 'Dream Team',      s1: 12, s2:  8, t2: 'Poder Latino' },
+    { jornada: 1, t1: 'Fenix',           s1: 18, s2:  1, t2: 'Beer Ballers' },
+    { jornada: 1, t1: 'Sluggers',        s1:  7, s2: 12, t2: 'Mold Specialist' },
+    { jornada: 1, t1: 'Royals',          s1: 21, s2:  4, t2: 'Poder Latino' },
+    { jornada: 1, t1: 'RL',              s1: 13, s2:  4, t2: 'Bufalos' },
+    { jornada: 2, t1: 'Beer Ballers',    s1: 13, s2: 13, t2: 'Dream Team' },
+    { jornada: 2, t1: 'Fenix',           s1: 16, s2:  0, t2: 'Sluggers' },
+    { jornada: 2, t1: 'Royals',          s1: 17, s2:  1, t2: 'Sluggers' },
+    { jornada: 2, t1: 'Mold Specialist', s1:  0, s2: 12, t2: 'RL' },
+    { jornada: 2, t1: 'Marlins',         s1: 17, s2: 11, t2: 'Angelinos' },
+    { jornada: 2, t1: 'Bufalos',         s1:  8, s2:  2, t2: 'Poder Latino' },
+  ];
+
+  const TEAM_NAMES = [
+    'Dream Team','Fenix','Royals','Mold Specialist','Angelinos',
+    'RL','Marlins','Masacre','Sluggers','Beer Ballers','Poder Latino','Bufalos'
+  ];
+
+  function buildRealState() {
+    resetState();
+    TEAMS = TEAM_NAMES.map(n => _makeTeam(n));
+    games = [...REAL_GAMES];
+    rebuildStandingsFromGames();
+  }
+
+  it('Dream Team: 2W 0L 1T en jornadas 1-2', () => {
+    buildRealState();
+    const dt = TEAMS.find(t => t.name === 'Dream Team');
+    expect(dt.w).toBe(2);
+    expect(dt.l).toBe(0);
+    expect(dt.t).toBe(1);
+  });
+
+  it('Poder Latino: 0W 3L — triple pérdida', () => {
+    buildRealState();
+    const pl = TEAMS.find(t => t.name === 'Poder Latino');
+    expect(pl.w).toBe(0);
+    expect(pl.l).toBe(3);
+  });
+
+  it('Fenix: 2W — invicto tras 2 jornadas', () => {
+    buildRealState();
+    const fenix = TEAMS.find(t => t.name === 'Fenix');
+    expect(fenix.w).toBe(2);
+    expect(fenix.l).toBe(0);
+    expect(calcPCT(fenix)).toBe(1);
+  });
+
+  it('Royals: 2W — invicto tras 2 jornadas', () => {
+    buildRealState();
+    const royals = TEAMS.find(t => t.name === 'Royals');
+    expect(royals.w).toBe(2);
+    expect(royals.l).toBe(0);
+  });
+
+  it('RL: 1W 1T — combo victoria + empate', () => {
+    buildRealState();
+    const rl = TEAMS.find(t => t.name === 'RL');
+    expect(rl.w).toBe(1);
+    expect(rl.t).toBe(1);
+    expect(calcPTS(rl)).toBe(4);
+  });
+
+  it('Marlins: 1W 1T — mismo record que RL', () => {
+    buildRealState();
+    const marlins = TEAMS.find(t => t.name === 'Marlins');
+    expect(marlins.w).toBe(1);
+    expect(marlins.t).toBe(1);
+    expect(calcPTS(marlins)).toBe(4);
+  });
+
+  it('Sluggers: 0W 3L — no ganó ninguno', () => {
+    buildRealState();
+    const sluggers = TEAMS.find(t => t.name === 'Sluggers');
+    expect(sluggers.w).toBe(0);
+    expect(sluggers.l).toBe(3);
+    expect(calcPTS(sluggers)).toBe(0);
+  });
+
+  it('Beer Ballers: 1T — empate con Dream Team', () => {
+    buildRealState();
+    const bb = TEAMS.find(t => t.name === 'Beer Ballers');
+    expect(bb.t).toBe(1);
+    expect(bb.l).toBe(1); // Lost to Fenix J1
+    expect(calcPTS(bb)).toBe(1);
+  });
+
+  it('Dream Team lidera con 7 PTS', () => {
+    buildRealState();
+    const dt = TEAMS.find(t => t.name === 'Dream Team');
+    expect(calcPTS(dt)).toBe(7);
+    const sorted = getSorted();
+    expect(sorted[0].name).toBe('Dream Team');
+  });
+
+  it('total de GP suma 28 (14 juegos × 2 equipos)', () => {
+    buildRealState();
+    const totalGP = TEAMS.reduce((sum, t) => sum + t.gp, 0);
+    expect(totalGP).toBe(28);
+  });
+
+  it('RS totales = RA totales (cada carrera anotada es también permitida)', () => {
+    buildRealState();
+    const totalRS = TEAMS.reduce((sum, t) => sum + t.rs, 0);
+    const totalRA = TEAMS.reduce((sum, t) => sum + t.ra, 0);
+    expect(totalRS).toBe(totalRA);
+  });
+
+  it('calcGB: Fenix tiene GB correcto vs Dream Team', () => {
+    buildRealState();
+    const sorted = getSorted();
+    const leader = sorted[0]; // Dream Team
+    const fenix  = TEAMS.find(t => t.name === 'Fenix');
+    const gb = calcGB(fenix, leader);
+    // Dream Team: 2W 0L. Fenix: 2W 0L. GB = ((2-2)+(0-0))/2 = 0
+    expect(gb).toBe(0);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// RENDER RESULTS
+// ─────────────────────────────────────────────────────────────────────────────
+
+const container = document.getElementById('results');
+let totalPass = 0, totalFail = 0;
+
+_tests.forEach(suite => {
+  const suiteEl = document.createElement('div');
+  suiteEl.className = 'suite';
+
+  const title = document.createElement('div');
+  title.className = 'suite-title';
+  const suitePass = suite.tests.filter(t => t.pass).length;
+  title.textContent = `${suite.name}  (${suitePass}/${suite.tests.length})`;
+  suiteEl.appendChild(title);
+
+  suite.tests.forEach(test => {
+    const row = document.createElement('div');
+    row.className = 'test' + (test.pass ? '' : ' fail');
+
+    const icon = document.createElement('span');
+    icon.className = 'icon';
+    icon.textContent = test.pass ? '✅' : '❌';
+
+    const info = document.createElement('div');
+    info.innerHTML = `<div class="test-name">${test.name}</div>`;
+    if (!test.pass) {
+      info.innerHTML += `<div class="test-detail">${test.error}</div>`;
+    }
+
+    row.appendChild(icon);
+    row.appendChild(info);
+    suiteEl.appendChild(row);
+
+    if (test.pass) totalPass++; else totalFail++;
+  });
+
+  container.appendChild(suiteEl);
+});
+
+const summaryEl = document.getElementById('summary');
+const total = totalPass + totalFail;
+const allPass = totalFail === 0;
+
+summaryEl.innerHTML = `
+  <div class="summary ${allPass ? 'pass' : 'fail'}">
+    <span class="count">${totalPass}/${total}</span> tests pasados
+    ${totalFail > 0 ? ` &nbsp;·&nbsp; <strong>${totalFail} fallidos</strong>` : ' — ¡Todo correcto! ⚾'}
+    <div class="bar">
+      <div class="bar-fill ${totalFail > 0 ? 'has-fail' : ''}" style="width:${Math.round(totalPass/total*100)}%"></div>
+    </div>
+  </div>
+`;
+
+document.getElementById('subtitle').textContent =
+  `${_tests.length} suites · ${total} tests · ${new Date().toLocaleTimeString('es')}`;
+</script>
+</body>
+</html>

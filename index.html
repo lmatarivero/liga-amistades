@@ -3,6 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script>
+// Apply view=standings class BEFORE render to avoid flash
+if (new URLSearchParams(location.search).get('view') === 'standings') {
+  document.documentElement.classList.add('view-standings-only');
+}
+</script>
 <title>Liga Amistades — Febrero 2026</title>
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,800&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
@@ -46,6 +52,29 @@
     font-family: var(--font-body);
     min-height: 100vh;
     overflow-x: hidden;
+  }
+
+  /* ─── VIEW=STANDINGS MODE ─── */
+  .view-standings-only nav,
+  .view-standings-only .theme-btn,
+  .view-standings-only .gear-btn,
+  .view-standings-only #tab-enter,
+  .view-standings-only #tab-jornadas,
+  .view-standings-only #tab-standings .section-header {
+    display: none !important;
+  }
+  .view-standings-only #tab-standings {
+    display: block !important;
+  }
+  .view-standings-only header {
+    justify-content: space-between;
+  }
+  .view-standings-only .standings-view-bar {
+    display: flex !important;
+  }
+  @keyframes live-pulse {
+    0%,100% { opacity:1; transform:scale(1); }
+    50% { opacity:0.4; transform:scale(0.7); }
   }
 
   /* HEADER */
@@ -1071,6 +1100,11 @@
   </nav>
   <button class="theme-btn" onclick="toggleTheme()" title="Cambiar tema" id="theme-btn">☀</button>
   <button class="gear-btn" onclick="openSettings()" title="Configuración">⚙</button>
+  <!-- Shown only in ?view=standings mode -->
+  <div style="display:none;align-items:center;gap:0.4rem;font-size:0.65rem;font-weight:700;letter-spacing:0.12em;color:var(--green);text-transform:uppercase;" class="standings-view-bar">
+    <div style="width:7px;height:7px;border-radius:50%;background:var(--green);animation:live-pulse 1.5s infinite;"></div>
+    En vivo
+  </div>
 </header>
 
 <main>
@@ -1397,12 +1431,6 @@ const TEAM_STYLES = {
   'Bufalos':      { bg: '#37474f', txt: '#80cbc4', abbr: 'BF' },
 };
 
-function makeLogo(teamName, small = false) {
-  const s = TEAM_STYLES[teamName] || { bg: '#333', txt: '#fff', abbr: '?' };
-  const size = small ? 38 : 52;
-  const fs = small ? '0.72rem' : '0.95rem';
-  return `<div class="team-logo${small ? ' team-logo-sm' : ''}" style="background:${s.bg};color:${s.txt};width:${size}px;height:${size}px;font-size:${fs};">${s.abbr}</div>`;
-}
 
 const TEAMS = [
   { name: 'Dream Team',  gp: 0, w: 0, l: 0, t: 0, rs: 0, ra: 0 },
@@ -1759,6 +1787,7 @@ function confirmResult() {
   renderJornadas();
   showToast(`${t1name} ${s1} — ${s2} ${t2name} | Guardado`);
   clearForm();
+  saveToStorage();
 }
 
 // ─── JORNADAS ───────────────────────────────────────────────────────────────
@@ -2441,7 +2470,7 @@ function cancelPlayerForm() {
   currentPlayerPhoto = null;
 }
 
-// ── makeLogo updated to support uploaded logos ────────────────────────────────
+// ─── LOGO HELPER ─────────────────────────────────────────────────────────────
 function makeLogoEl(teamName, small = false) {
   const logo = teamLogos[teamName];
   const s = TEAM_STYLES[teamName] || { bg: '#333', txt: '#fff', abbr: '?' };
@@ -2452,8 +2481,6 @@ function makeLogoEl(teamName, small = false) {
   }
   return `<div class="team-logo${small ? ' team-logo-sm' : ''}" style="background:${s.bg};color:${s.txt};width:${size}px;height:${size}px;font-size:${fs};">${s.abbr}</div>`;
 }
-
-// ─── SETTINGS ────────────────────────────────────────────────────────────────
 
 // ─── FIREBASE ────────────────────────────────────────────────────────────────
 
@@ -2501,7 +2528,6 @@ window.saveToFirebase = async function(data) {
       fbData.config = { ...fbData.config, leagueLogo: null };
     }
     await LIGA_DOC_REF.set(fbData);
-    console.log('Firebase saved OK');
   } catch(e) {
     console.error('Firebase save error:', e);
   }
@@ -2716,22 +2742,6 @@ populateForm();
   reader.readAsText(file);
 }
 
-// Auto-save after every result confirmation
-const _origConfirmResult = confirmResult;
-confirmResult = function() {
-  _origConfirmResult();
-  saveToStorage();
-};
-
-// ─── THEME ───────────────────────────────────────────────────────────────────
-
-function toggleTheme() {
-  const isLight = document.documentElement.classList.toggle('light');
-  document.getElementById('theme-btn').textContent = isLight ? '☾' : '☀';
-  try { localStorage.setItem('liga_theme', isLight ? 'light' : 'dark'); } catch(e) {}
-}
-
-
 
 // ─── INIT ─────────────────────────────────────────────────────────────────────
 // Apply data from Firebase snapshot
@@ -2774,60 +2784,14 @@ async function initData() {
     populateForm();
   }
   if (window.loadFromFirebase) {
-    console.log('Loading from Firebase...');
     const fbData = await window.loadFromFirebase();
-    console.log('Firebase data:', fbData ? 'found' : 'null');
     if (fbData) {
       window._applyFirebaseData(fbData);
       try { localStorage.setItem(STORAGE_KEY, JSON.stringify(fbData)); } catch(e) {}
-      console.log('Firebase data applied');
     }
-  } else {
-    console.log('loadFromFirebase not available');
   }
   _fbSyncReady = true;
   initTheme();
-
-  // ─── ?view=standings READ-ONLY MODE ──────────────────────────────────────
-  const urlParams = new URLSearchParams(window.location.search);
-  if (urlParams.get('view') === 'standings') {
-    // Hide nav, controls, header buttons — show only standings
-    document.querySelector('nav').style.display = 'none';
-    const headerRight = document.querySelector('.header-right');
-    if (headerRight) headerRight.style.display = 'none';
-
-    // Hide all tabs except standings
-    document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
-    const standingsTab = document.getElementById('tab-standings');
-    if (standingsTab) standingsTab.classList.add('active');
-
-    // Hide export button and GB toggle row — keep clean
-    const sectionHeader = document.querySelector('#tab-standings .section-header');
-    if (sectionHeader) sectionHeader.style.display = 'none';
-
-    // Add read-only badge + link back to full app
-    const badge = document.createElement('div');
-    badge.style.cssText = `
-      display:flex; align-items:center; justify-content:space-between;
-      padding: 0.5rem 0; margin-bottom: 0.75rem; gap:1rem; flex-wrap:wrap;
-    `;
-    badge.innerHTML = `
-      <div style="display:flex;align-items:center;gap:0.4rem;font-size:0.65rem;font-weight:700;letter-spacing:0.12em;color:var(--green);text-transform:uppercase;">
-        <div style="width:7px;height:7px;border-radius:50%;background:var(--green);animation:pulse 1.5s infinite;"></div>
-        En vivo
-      </div>
-      <a href="${window.location.pathname}" style="font-size:0.65rem;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--accent);text-decoration:none;">
-        Abrir app completa →
-      </a>
-    `;
-    const standingsWrap = document.querySelector('.standings-wrap');
-    if (standingsWrap) standingsWrap.parentNode.insertBefore(badge, standingsWrap);
-
-    // Pulse animation
-    const style = document.createElement('style');
-    style.textContent = `@keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.4;transform:scale(.7)} }`;
-    document.head.appendChild(style);
-  }
 }
 
 initData();
