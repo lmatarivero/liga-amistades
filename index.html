@@ -2713,9 +2713,23 @@ window._applyFirebaseData = function(data) {
   Object.assign(teamLogos, { ...TEAM_LOGOS_DEFAULT });
   Object.assign(teamLogos, data.teamLogos || {});
   Object.assign(rosters, data.rosters || {});
+  // Restore TEAMS array
+  if (data.teams && data.teams.length) {
+    TEAMS.length = 0;
+    data.teams.forEach(t => {
+      TEAMS.push({ name: t.name, gp:0, w:0, l:0, t:0, rs:0, ra:0 });
+      if (!rosters[t.name]) rosters[t.name] = [];
+    });
+  }
   rebuildStandingsFromGames();
+  renderStandings();
   renderJornadas();
   populateForm();
+  buildDropdown('team1');
+  buildDropdown('team2');
+  updateLeagueName();
+  const titleEl = document.getElementById('standings-title-main');
+  if (titleEl) titleEl.textContent = config.tournamentName || '';
 };
 
 // Load: try Firebase first, fall back to localStorage
