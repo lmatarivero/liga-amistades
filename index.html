@@ -1833,15 +1833,48 @@ function renderJornadas() {
 
 function exportImage() {
   const el = document.getElementById('standings-capture');
+  showToast('Generando imagen…');
+
   html2canvas(el, {
-    backgroundColor: '#13131a',
-    scale: 2,
+    backgroundColor: '#0a0a0f',
+    scale: 2.5,
     useCORS: true,
+    allowTaint: true,
     logging: false,
   }).then(canvas => {
+    // Add padding + watermark via extra canvas
+    const pad = 32;
+    const footerH = 36;
+    const out = document.createElement('canvas');
+    out.width  = canvas.width + pad * 2;
+    out.height = canvas.height + pad * 2 + footerH;
+    const ctx = out.getContext('2d');
+
+    // Background
+    ctx.fillStyle = '#0a0a0f';
+    ctx.fillRect(0, 0, out.width, out.height);
+
+    // Draw table
+    ctx.drawImage(canvas, pad, pad);
+
+    // Watermark footer
+    ctx.fillStyle = '#2a2a3d';
+    ctx.fillRect(0, out.height - footerH, out.width, footerH);
+    ctx.fillStyle = '#e8c84a';
+    ctx.font = `700 ${footerH * 0.42}px Montserrat, sans-serif`;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('Liga Amistades', pad, out.height - footerH / 2);
+    ctx.fillStyle = '#6b6b8a';
+    ctx.font = `400 ${footerH * 0.38}px Montserrat, sans-serif`;
+    ctx.textAlign = 'right';
+    const now = new Date();
+    ctx.fillText(now.toLocaleDateString('es', {day:'numeric', month:'short', year:'numeric'}), out.width - pad, out.height - footerH / 2);
+
     const link = document.createElement('a');
-    link.download = `liga-amistades-standings.png`;
-    link.href = canvas.toDataURL('image/png');
+    const dateStr = now.toISOString().slice(0,10);
+    link.download = `clasificacion-liga-amistades-${dateStr}.png`;
+    link.href = out.toDataURL('image/png');
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -2754,6 +2787,47 @@ async function initData() {
   }
   _fbSyncReady = true;
   initTheme();
+
+  // ─── ?view=standings READ-ONLY MODE ──────────────────────────────────────
+  const urlParams = new URLSearchParams(window.location.search);
+  if (urlParams.get('view') === 'standings') {
+    // Hide nav, controls, header buttons — show only standings
+    document.querySelector('nav').style.display = 'none';
+    const headerRight = document.querySelector('.header-right');
+    if (headerRight) headerRight.style.display = 'none';
+
+    // Hide all tabs except standings
+    document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+    const standingsTab = document.getElementById('tab-standings');
+    if (standingsTab) standingsTab.classList.add('active');
+
+    // Hide export button and GB toggle row — keep clean
+    const sectionHeader = document.querySelector('#tab-standings .section-header');
+    if (sectionHeader) sectionHeader.style.display = 'none';
+
+    // Add read-only badge + link back to full app
+    const badge = document.createElement('div');
+    badge.style.cssText = `
+      display:flex; align-items:center; justify-content:space-between;
+      padding: 0.5rem 0; margin-bottom: 0.75rem; gap:1rem; flex-wrap:wrap;
+    `;
+    badge.innerHTML = `
+      <div style="display:flex;align-items:center;gap:0.4rem;font-size:0.65rem;font-weight:700;letter-spacing:0.12em;color:var(--green);text-transform:uppercase;">
+        <div style="width:7px;height:7px;border-radius:50%;background:var(--green);animation:pulse 1.5s infinite;"></div>
+        En vivo
+      </div>
+      <a href="${window.location.pathname}" style="font-size:0.65rem;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--accent);text-decoration:none;">
+        Abrir app completa →
+      </a>
+    `;
+    const standingsWrap = document.querySelector('.standings-wrap');
+    if (standingsWrap) standingsWrap.parentNode.insertBefore(badge, standingsWrap);
+
+    // Pulse animation
+    const style = document.createElement('style');
+    style.textContent = `@keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.4;transform:scale(.7)} }`;
+    document.head.appendChild(style);
+  }
 }
 
 initData();
