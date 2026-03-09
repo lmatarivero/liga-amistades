@@ -1,0 +1,573 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Clasificación — Liga Amistades</title>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,800&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --surface: #13131a;
+    --surface2: #1c1c27;
+    --border: #2a2a3d;
+    --accent: #e8c84a;
+    --red: #e84a4a;
+    --green: #4ae87a;
+    --text: #f0f0f8;
+    --muted: #6b6b8a;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Montserrat', sans-serif;
+    min-height: 100vh;
+  }
+
+  header {
+    background: var(--surface);
+    border-bottom: 2px solid var(--accent);
+    padding: 1rem 1.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+
+  .logo {
+    font-size: clamp(1.2rem, 4vw, 1.7rem);
+    font-weight: 800;
+    font-style: italic;
+    color: var(--accent);
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+  }
+  .logo span { color: var(--text); }
+
+  .live-badge {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    color: var(--green);
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+  .live-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--green);
+    animation: pulse 1.5s infinite;
+  }
+  @keyframes pulse {
+    0%,100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.4; transform: scale(0.7); }
+  }
+
+  main { padding: 1.5rem 1rem; max-width: 900px; margin: 0 auto; }
+
+  .section-title {
+    font-size: clamp(1.6rem, 6vw, 2.4rem);
+    font-weight: 800;
+    font-style: italic;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    margin-bottom: 1.2rem;
+    color: var(--text);
+  }
+  .section-title span { color: var(--accent); }
+
+  .updated-at {
+    font-size: 0.65rem;
+    font-weight: 300;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+    margin-bottom: 1rem;
+    text-transform: uppercase;
+  }
+
+  /* TABLE */
+  .standings-wrap {
+    background: var(--surface);
+    border-radius: 12px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  thead th {
+    background: var(--surface2);
+    padding: 0.5rem 0.4rem;
+    font-size: 0.6rem;
+    font-weight: 300;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    text-align: center;
+  }
+  thead th:nth-child(2) { text-align: left; padding-left: 0.75rem; }
+
+  tbody tr {
+    border-bottom: 1px solid var(--border);
+    transition: background 0.1s;
+  }
+  tbody tr:last-child { border-bottom: none; }
+  tbody tr:hover { background: var(--surface2); }
+
+  td {
+    padding: 0.45rem 0.4rem;
+    text-align: center;
+    font-size: clamp(0.7rem, 2.5vw, 0.85rem);
+  }
+
+  /* Zone indicators */
+  .zone-in td:first-child { border-left: 3px solid var(--green); }
+  .zone-out td:first-child { border-left: 3px solid var(--red); }
+
+  /* Cutoff row */
+  .cutoff-row td {
+    padding: 0.25rem 0;
+    background: rgba(232,72,74,0.08);
+  }
+  .cutoff-label {
+    font-size: 0.55rem;
+    font-weight: 700;
+    letter-spacing: 0.18em;
+    color: var(--red);
+    text-transform: uppercase;
+  }
+
+  /* Leader row */
+  tr.leader { background: rgba(232,200,74,0.04); }
+
+  /* Position number */
+  .pos {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--muted);
+    width: 1.8rem;
+    padding-left: 0.5rem;
+  }
+  .pos-in  { color: var(--green); }
+  .pos-out { color: var(--red); }
+
+  /* Team cell */
+  .team-cell {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding-left: 0.5rem;
+  }
+  .team-logo {
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+  .team-name {
+    font-weight: 700;
+    font-size: clamp(0.7rem, 2.8vw, 0.88rem);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 110px;
+  }
+
+  /* Number cells */
+  .num { font-weight: 600; color: var(--muted); }
+  .pri { font-weight: 800; color: var(--text); }
+  .pts { font-weight: 800; color: var(--accent); }
+  .rd-pos { font-weight: 700; color: var(--green); }
+  .rd-neg { font-weight: 700; color: var(--red); }
+  .rd-zero { color: var(--muted); }
+
+  /* GB toggle */
+  .controls {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+    flex-wrap: wrap;
+  }
+  .toggle-label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    user-select: none;
+  }
+  .toggle {
+    width: 36px; height: 20px;
+    border-radius: 10px;
+    background: var(--border);
+    position: relative;
+    transition: background 0.2s;
+  }
+  .toggle::after {
+    content: '';
+    position: absolute;
+    top: 3px; left: 3px;
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    background: white;
+    transition: left 0.2s;
+  }
+  .toggle.on { background: var(--accent); }
+  .toggle.on::after { left: 19px; }
+
+  /* Loading state */
+  .loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    padding: 3rem;
+    color: var(--muted);
+    font-size: 0.8rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+  }
+  .spinner {
+    width: 20px; height: 20px;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Footer */
+  footer {
+    text-align: center;
+    padding: 2rem 1rem;
+    font-size: 0.6rem;
+    font-weight: 300;
+    letter-spacing: 0.1em;
+    color: var(--muted);
+    text-transform: uppercase;
+  }
+  footer a {
+    color: var(--accent);
+    text-decoration: none;
+    font-weight: 600;
+  }
+
+  /* Mobile: hide GB and E columns on very small screens */
+  @media (max-width: 480px) {
+    .hide-xs { display: none !important; }
+    .team-name { max-width: 80px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo" id="league-logo">Liga <span>Amistades</span></div>
+  <div class="live-badge">
+    <div class="live-dot"></div>
+    En vivo
+  </div>
+</header>
+
+<main>
+  <div class="section-title"><span id="tournament-name">Febrero 2026</span></div>
+  <div class="updated-at" id="updated-at"></div>
+
+  <div class="controls">
+    <label class="toggle-label" onclick="toggleGB()">
+      <div class="toggle on" id="gb-toggle"></div>
+      Mostrar GB
+    </label>
+  </div>
+
+  <div class="standings-wrap" id="standings-wrap">
+    <div class="loading">
+      <div class="spinner"></div>
+      Cargando clasificación…
+    </div>
+  </div>
+</main>
+
+<footer>
+  Vista pública · <a href="https://lmatarivero.github.io/liga-amistades/" target="_blank">Abrir app completa →</a>
+</footer>
+
+<script>
+// ─── CONFIG ──────────────────────────────────────────────────────────────────
+
+const firebaseConfig = {
+  apiKey: "AIzaSyASErflGG8MNpsbafRKNkjjeR-Sf40YRC4",
+  authDomain: "liga-amistades.firebaseapp.com",
+  projectId: "liga-amistades",
+  storageBucket: "liga-amistades.firebasestorage.app",
+  messagingSenderId: "784097973811",
+  appId: "1:784097973811:web:d1c4d474a4307a953d7546"
+};
+
+// ─── TEAM STYLES (fallback) ───────────────────────────────────────────────────
+
+const TEAM_STYLES = {
+  'Dream Team':      { bg: '#1a3a6b', txt: '#f5c842', abbr: 'DT' },
+  'Fenix':           { bg: '#c0392b', txt: '#f5e642', abbr: 'FX' },
+  'Royals':          { bg: '#1d4e8f', txt: '#b8c9e1', abbr: 'RY' },
+  'Mold Specialist': { bg: '#2e7d32', txt: '#a5d6a7', abbr: 'ML' },
+  'Angelinos':       { bg: '#b71c1c', txt: '#ffffff',  abbr: 'AN' },
+  'RL':              { bg: '#4a148c', txt: '#e040fb', abbr: 'RL' },
+  'Marlins':         { bg: '#006ca7', txt: '#ff6b35', abbr: 'MA' },
+  'Masacre':         { bg: '#212121', txt: '#ff5722', abbr: 'MC' },
+  'Sluggers':        { bg: '#e65100', txt: '#fff9c4', abbr: 'SL' },
+  'Beer Ballers':    { bg: '#f9a825', txt: '#3e2723', abbr: 'BB' },
+  'Poder Latino':    { bg: '#880e4f', txt: '#f48fb1', abbr: 'PL' },
+  'Bufalos':         { bg: '#37474f', txt: '#80cbc4', abbr: 'BF' },
+};
+
+// ─── STATE ────────────────────────────────────────────────────────────────────
+
+let TEAMS = [];
+let games = [];
+let teamLogos = {};
+let showGB = true;
+
+// ─── COMPUTED ─────────────────────────────────────────────────────────────────
+
+function calcPTS(t) { return t.w * 3 + t.t * 1; }
+function calcPCT(t) { return t.gp > 0 ? t.w / t.gp : 0; }
+function calcRD(t)  { return t.rs - t.ra; }
+function calcGB(team, leader) {
+  return ((leader.w - team.w) + (team.l - leader.l)) / 2;
+}
+
+function h2hWinPct(team, opponents) {
+  let w = 0, l = 0, t = 0;
+  games.forEach(g => {
+    const t1 = g.t1 === team.name && opponents.includes(g.t2);
+    const t2 = g.t2 === team.name && opponents.includes(g.t1);
+    if (t1) { if (g.s1 > g.s2) w++; else if (g.s1 < g.s2) l++; else t++; }
+    if (t2) { if (g.s2 > g.s1) w++; else if (g.s2 < g.s1) l++; else t++; }
+  });
+  const gp = w + l + t;
+  return gp > 0 ? (w + t * 0.5) / gp : 0;
+}
+
+function getSorted() {
+  const maxJ = 11;
+  const seasonComplete = games.length > 0 && Math.max(...games.map(g => g.jornada)) >= maxJ;
+  const byPts = [...TEAMS].sort((a, b) => calcPTS(b) - calcPTS(a));
+
+  let i = 0;
+  const result = [];
+  while (i < byPts.length) {
+    let j = i + 1;
+    while (j < byPts.length && calcPTS(byPts[j]) === calcPTS(byPts[i])) j++;
+    const group = byPts.slice(i, j);
+    if (group.length === 1) { result.push(group[0]); i = j; continue; }
+    const opponents = group.map(t => t.name);
+    const useH2H = seasonComplete;
+    group.sort((a, b) => {
+      if (useH2H) {
+        const hd = h2hWinPct(b, opponents.filter(n => n !== b.name)) - h2hWinPct(a, opponents.filter(n => n !== a.name));
+        if (Math.abs(hd) > 0.001) return hd;
+      }
+      const pd = calcPCT(b) - calcPCT(a);
+      if (Math.abs(pd) > 0.001) return pd;
+      return calcRD(b) - calcRD(a);
+    });
+    result.push(...group);
+    i = j;
+  }
+  return result;
+}
+
+function rebuildFromGames() {
+  TEAMS.forEach(t => { t.gp = 0; t.w = 0; t.l = 0; t.t = 0; t.rs = 0; t.ra = 0; });
+  games.forEach(g => {
+    const t1 = TEAMS.find(t => t.name === g.t1);
+    const t2 = TEAMS.find(t => t.name === g.t2);
+    if (!t1 || !t2) return;
+    t1.gp++; t2.gp++;
+    t1.rs += g.s1; t1.ra += g.s2;
+    t2.rs += g.s2; t2.ra += g.s1;
+    if (g.s1 > g.s2)      { t1.w++; t2.l++; }
+    else if (g.s2 > g.s1) { t2.w++; t1.l++; }
+    else                   { t1.t++; t2.t++; }
+  });
+}
+
+// ─── RENDER ───────────────────────────────────────────────────────────────────
+
+function makeLogoEl(teamName) {
+  const logo = teamLogos[teamName];
+  const s = TEAM_STYLES[teamName] || { bg: '#333', txt: '#fff', abbr: '?' };
+  const size = 32;
+  if (logo) {
+    return `<img src="${logo}" style="width:${size}px;height:${size}px;border-radius:50%;object-fit:cover;border:2px solid rgba(255,255,255,0.15);flex-shrink:0;">`;
+  }
+  return `<div class="team-logo" style="background:${s.bg};color:${s.txt};width:${size}px;height:${size}px;font-size:0.6rem;font-weight:700;display:flex;align-items:center;justify-content:center;">${s.abbr}</div>`;
+}
+
+function renderStandings() {
+  const sorted = getSorted();
+  const leader = sorted[0];
+  const CUTOFF = 8;
+  const wrap = document.getElementById('standings-wrap');
+
+  let html = `<table>
+    <thead>
+      <tr>
+        <th style="width:1.8rem">#</th>
+        <th style="text-align:left;padding-left:0.75rem">Equipo</th>
+        <th class="num">JJ</th>
+        <th class="num pri">G</th>
+        <th class="num pri">P</th>
+        <th class="num hide-xs">E</th>
+        <th class="num">PTS</th>
+        <th class="num">PCT</th>
+        <th class="num gb-col hide-xs">GB</th>
+        <th class="num pri">RS</th>
+        <th class="num pri">RA</th>
+        <th class="num">RD</th>
+      </tr>
+    </thead>
+    <tbody>`;
+
+  sorted.forEach((team, i) => {
+    const pts = calcPTS(team);
+    const pct = calcPCT(team);
+    const rd  = calcRD(team);
+    const gb  = calcGB(team, leader);
+    const isLeader = i === 0;
+    const isIn = i < CUTOFF;
+
+    const rdClass = rd > 0 ? 'rd-pos' : rd < 0 ? 'rd-neg' : 'rd-zero';
+    const rdStr = rd > 0 ? `+${rd}` : `${rd}`;
+    const gbStr = isLeader ? '—' : (gb % 1 === 0 ? gb.toFixed(0) : gb.toFixed(1));
+    const posClass = isIn ? 'pos-in' : 'pos-out';
+    const zoneClass = isIn ? 'zone-in' : 'zone-out';
+    const starEl = isLeader ? ' ★' : '';
+
+    if (i === CUTOFF) {
+      html += `<tr class="cutoff-row"><td colspan="12"><span class="cutoff-label">— Eliminación —</span></td></tr>`;
+    }
+
+    html += `<tr class="${zoneClass}${isLeader ? ' leader' : ''}">
+      <td class="pos ${posClass}">${i + 1}</td>
+      <td><div class="team-cell">${makeLogoEl(team.name)}<span class="team-name">${team.name}${starEl}</span></div></td>
+      <td class="num">${team.gp}</td>
+      <td class="num pri">${team.w}</td>
+      <td class="num pri">${team.l}</td>
+      <td class="num hide-xs">${team.t}</td>
+      <td class="pts">${pts}</td>
+      <td class="num">${pct.toFixed(3).replace('0.', '.')}</td>
+      <td class="num gb-col hide-xs">${gbStr}</td>
+      <td class="num pri">${team.rs}</td>
+      <td class="num pri">${team.ra}</td>
+      <td class="num ${rdClass}">${rdStr}</td>
+    </tr>`;
+  });
+
+  html += '</tbody></table>';
+  wrap.innerHTML = html;
+  applyGBVisibility();
+}
+
+function toggleGB() {
+  showGB = !showGB;
+  document.getElementById('gb-toggle').classList.toggle('on', showGB);
+  applyGBVisibility();
+}
+
+function applyGBVisibility() {
+  document.querySelectorAll('.gb-col').forEach(el => {
+    el.style.display = showGB ? '' : 'none';
+  });
+}
+
+function updateTimestamp() {
+  const el = document.getElementById('updated-at');
+  const now = new Date();
+  el.textContent = `Actualizado: ${now.toLocaleDateString('es', {weekday:'short', day:'numeric', month:'short'})} · ${now.toLocaleTimeString('es', {hour:'2-digit', minute:'2-digit'})}`;
+}
+
+// ─── FIREBASE ─────────────────────────────────────────────────────────────────
+
+function applyData(data) {
+  if (!data) return;
+
+  // Reset logos on each load
+  Object.keys(teamLogos).forEach(k => delete teamLogos[k]);
+  if (data.teams && Array.isArray(data.teams)) {
+    TEAMS.length = 0;
+    data.teams.forEach(t => {
+      TEAMS.push({ name: t.name, gp:0, w:0, l:0, t:0, rs:0, ra:0 });
+      // Extract logo from team object if present
+      if (t.logo) teamLogos[t.name] = t.logo;
+    });
+  }
+  // Games
+  if (data.games && Array.isArray(data.games)) {
+    games.length = 0;
+    data.games.forEach(g => games.push(g));
+  }
+  // Logos map (overrides team-level logos if present)
+  if (data.teamLogos) {
+    Object.assign(teamLogos, data.teamLogos);
+  }
+  // League / tournament name
+  if (data.config) {
+    if (data.config.leagueName) {
+      const parts = data.config.leagueName.split(' ');
+      document.getElementById('league-logo').innerHTML = `${parts[0]}<span> ${parts.slice(1).join(' ')}</span>`;
+      document.title = `Clasificación — ${data.config.leagueName}`;
+    }
+    if (data.config.tournamentName) {
+      document.getElementById('tournament-name').textContent = data.config.tournamentName;
+    }
+  }
+
+  rebuildFromGames();
+  renderStandings();
+  updateTimestamp();
+}
+
+// Init Firebase
+try {
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.firestore();
+  const ref = db.collection('liga').doc('data');
+
+  // Real-time listener
+  ref.onSnapshot(snap => {
+    if (snap.exists) {
+      applyData(snap.data());
+    } else {
+      document.getElementById('standings-wrap').innerHTML =
+        '<div class="loading" style="flex-direction:column;gap:0.5rem;"><span>Sin datos</span><span style="font-size:0.65rem;color:var(--muted)">Aún no se han guardado resultados</span></div>';
+    }
+  }, err => {
+    document.getElementById('standings-wrap').innerHTML =
+      '<div class="loading" style="color:#e84a4a;">Error al conectar con Firebase</div>';
+  });
+} catch(e) {
+  document.getElementById('standings-wrap').innerHTML =
+    '<div class="loading" style="color:#e84a4a;">Error de inicialización</div>';
+}
+</script>
+</body>
+</html>
