@@ -2627,11 +2627,8 @@ function saveToStorage() {
   } catch(e) {
     console.error(e);
   }
-  // Debounced Firebase save
-  clearTimeout(_fbSaveTimer);
-  _fbSaveTimer = setTimeout(() => {
-    if (window.saveToFirebase) window.saveToFirebase(data);
-  }, 1000);
+  // Save to Firebase immediately (no debounce) to prevent data loss on reload
+  if (window.saveToFirebase) window.saveToFirebase(data);
 }
 
 function loadFromStorage() {
@@ -2779,7 +2776,7 @@ window._applyFirebaseData = function(data) {
   if (titleEl) titleEl.textContent = config.tournamentName || '';
 };
 
-// Load: try Firebase first, fall back to localStorage
+// Load: use whichever source (Firebase or localStorage) has the most recent data
 async function initData() {
   const localLoaded = loadFromStorage();
   if (localLoaded) {
@@ -2790,8 +2787,22 @@ async function initData() {
   if (window.loadFromFirebase) {
     const fbData = await window.loadFromFirebase();
     if (fbData) {
-      window._applyFirebaseData(fbData);
-      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(fbData)); } catch(e) {}
+      // Only apply Firebase data if it's newer than what we have locally
+      const localRaw = localStorage.getItem(STORAGE_KEY);
+      let localDate = null;
+      try { localDate = localRaw ? new Date(JSON.parse(localRaw).savedAt) : null; } catch(e) {}
+      const fbDate = fbData.savedAt ? new Date(fbData.savedAt) : null;
+      const fbIsNewer = !localDate || (fbDate && fbDate > localDate);
+      if (fbIsNewer) {
+        window._applyFirebaseData(fbData);
+        try { localStorage.setItem(STORAGE_KEY, JSON.stringify(fbData)); } catch(e) {}
+      } else {
+        // Local is newer — push local data to Firebase to keep them in sync
+        try {
+          const localData = JSON.parse(localRaw);
+          if (window.saveToFirebase) window.saveToFirebase(localData);
+        } catch(e) {}
+      }
     }
   }
   _fbSyncReady = true;
