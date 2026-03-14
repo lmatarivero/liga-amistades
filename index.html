@@ -1295,6 +1295,21 @@ if (new URLSearchParams(location.search).get('view') === 'standings') {
         <div id="storage-status" style="font-family:var(--font-mono);font-size:0.65rem;color:var(--muted);margin-top:0.75rem;letter-spacing:0.05em;"></div>
       </div>
 
+      <div class="s-field" style="margin-top:1.5rem;padding-top:1.25rem;border-top:1px solid var(--border);">
+        <div class="settings-section-title">Firebase Cloud Sync</div>
+        <p style="font-family:var(--font-mono);font-size:0.7rem;color:var(--muted);margin-bottom:1rem;line-height:1.5;">
+          Sincronización automática <strong>desactivada por defecto</strong> para evitar exceder cuotas de Firebase. Usa sincronización manual cuando lo necesites.
+        </p>
+        <div style="display:flex;gap:0.75rem;align-items:center;margin-bottom:0.75rem;">
+          <span style="font-family:var(--font-mono);font-size:0.68rem;color:var(--muted);letter-spacing:0.05em;">Estado:</span>
+          <span id="firebase-sync-status" style="font-family:var(--font-mono);font-size:0.7rem;font-weight:600;color:var(--muted);">Desactivado</span>
+        </div>
+        <div style="display:flex;gap:0.75rem;flex-wrap:wrap;">
+          <button class="btn btn-accent" style="flex:1;min-width:140px;" onclick="manualFirebaseSync()">📤 Sincronizar Ahora</button>
+          <button class="btn btn-outline" style="flex:1;min-width:140px;" id="firebase-sync-toggle" onclick="toggleFirebaseSync()">Activar Auto-Sync</button>
+        </div>
+      </div>
+
       <div class="s-field">
         <label class="s-label">Logo de la liga</label>
         <div class="logo-upload-area" id="league-logo-area">
@@ -2625,6 +2640,11 @@ function rebuildStandingsFromGames() {
 
 const STORAGE_KEY = 'liga_amistades_v1';
 
+// Firebase sync control
+let _firebaseSyncEnabled = false; // DISABLED by default to prevent quota exhaustion
+let _firebaseSyncPending = false;
+let _firebaseSyncTimeout = null;
+
 function saveToStorage() {
   const data = {
     version: 1,
@@ -2641,8 +2661,61 @@ function saveToStorage() {
   } catch(e) {
     console.error(e);
   }
-  // Save to Firebase immediately (no debounce) to prevent data loss on reload
-  if (window.saveToFirebase) window.saveToFirebase(data);
+  
+  // Firebase sync: ONLY if explicitly enabled AND debounced (5 seconds)
+  if (_firebaseSyncEnabled && window.saveToFirebase) {
+    _firebaseSyncPending = true;
+    clearTimeout(_firebaseSyncTimeout);
+    _firebaseSyncTimeout = setTimeout(() => {
+      if (_firebaseSyncPending) {
+        window.saveToFirebase(data);
+        _firebaseSyncPending = false;
+        console.log('📤 Firebase sync completed');
+      }
+    }, 5000); // 5 second debounce to reduce writes
+  }
+}
+
+// Manual Firebase sync function
+async function manualFirebaseSync() {
+  if (!window.saveToFirebase) {
+    showToast('⚠ Firebase no disponible');
+    return;
+  }
+  
+  const data = {
+    version: 1,
+    savedAt: new Date().toISOString(),
+    config: config,
+    games: games,
+    teamStyles: TEAM_STYLES,
+    teamLogos: teamLogos,
+    rosters: rosters,
+    teams: TEAMS.map(t => ({ name: t.name })),
+  };
+  
+  try {
+    showToast('⏳ Sincronizando con Firebase...');
+    await window.saveToFirebase(data);
+    showToast('✓ Sincronizado con Firebase');
+  } catch(e) {
+    console.error('Firebase sync error:', e);
+    showToast('⚠ Error al sincronizar');
+  }
+}
+
+function toggleFirebaseSync() {
+  _firebaseSyncEnabled = !_firebaseSyncEnabled;
+  const btn = document.getElementById('firebase-sync-toggle');
+  const status = document.getElementById('firebase-sync-status');
+  if (btn) {
+    btn.textContent = _firebaseSyncEnabled ? 'Desactivar Auto-Sync' : 'Activar Auto-Sync';
+  }
+  if (status) {
+    status.textContent = _firebaseSyncEnabled ? 'Activo (guardado cada 5s)' : 'Desactivado';
+    status.style.color = _firebaseSyncEnabled ? 'var(--green)' : 'var(--muted)';
+  }
+  showToast(_firebaseSyncEnabled ? '✓ Auto-sync activado' : '⚠ Auto-sync desactivado');
 }
 
 function loadFromStorage() {
