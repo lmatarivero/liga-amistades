@@ -225,6 +225,19 @@ if (new URLSearchParams(location.search).get('view') === 'standings') {
 
   .btn-outline:hover { border-color: var(--accent); color: var(--accent); }
 
+  .btn-generate-ficha {
+    background: linear-gradient(135deg, var(--accent) 0%, var(--accent2) 100%);
+    color: var(--bg);
+    font-weight: 700;
+    margin-top: 1rem;
+    width: 100%;
+  }
+
+  .btn-generate-ficha:hover { 
+    opacity: 0.9;
+    transform: translateY(-1px);
+  }
+
   /* STANDINGS TABLE */
   .standings-wrap {
     background: var(--surface);
@@ -1367,6 +1380,7 @@ if (new URLSearchParams(location.search).get('view') === 'standings') {
         </div>
         <div id="roster-player-list"></div>
         <button class="btn btn-accent" style="width:100%;margin-top:0.75rem;" onclick="openAddPlayer()">+ Agregar jugador</button>
+        <button class="btn btn-generate-ficha" onclick="generateTeamFicha()">📸 Generar Ficha del Equipo</button>
         <!-- ADD/EDIT PLAYER FORM -->
         <div id="player-form" style="display:none;margin-top:1.25rem;padding:1rem;background:var(--surface2);border-radius:8px;border:1px solid var(--border);">
           <div class="settings-section-title" id="player-form-title">Nuevo Jugador</div>
@@ -2776,6 +2790,189 @@ window._applyFirebaseData = function(data) {
   if (titleEl) titleEl.textContent = config.tournamentName || '';
 };
 
+// ─── TEAM FICHA GENERATOR ────────────────────────────────────────────────────
+
+async function generateTeamFicha() {
+  const teamName = window.currentRosterTeam;
+  if (!teamName) {
+    showToast('⚠ Selecciona un equipo primero');
+    return;
+  }
+
+  const team = TEAMS.find(t => t.name === teamName);
+  if (!team) return;
+
+  const teamStyle = TEAM_STYLES[teamName] || { bg: '#333333', txt: '#ffffff' };
+  const teamLogo = teamLogos[teamName];
+  const roster = rosters[teamName] || [];
+
+  if (roster.length === 0) {
+    showToast('⚠ El equipo no tiene jugadores');
+    return;
+  }
+
+  // Sort players by number (ascending)
+  const sortedPlayers = [...roster].sort((a, b) => {
+    const numA = parseInt(a.number) || 999;
+    const numB = parseInt(b.number) || 999;
+    return numA - numB;
+  });
+
+  showToast('⏳ Generando ficha...');
+
+  // Create canvas (letter size vertical: 8.5" x 11" at 150 DPI = 1275x1650px)
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+  canvas.width = 1275;
+  canvas.height = 1650;
+
+  // Background color
+  ctx.fillStyle = teamStyle.bg;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // Load team logo
+  let teamLogoImg = null;
+  if (teamLogo) {
+    try {
+      teamLogoImg = await loadImage(teamLogo);
+    } catch(e) {
+      console.warn('Could not load team logo:', e);
+    }
+  }
+
+  // Header: Team name + logo
+  const headerY = 120;
+  const headerHeight = 140;
+
+  // Draw team logo (left side)
+  if (teamLogoImg) {
+    const logoSize = 110;
+    const logoX = 80;
+    const logoY = headerY + (headerHeight - logoSize) / 2;
+    ctx.drawImage(teamLogoImg, logoX, logoY, logoSize, logoSize);
+  }
+
+  // Draw team name (italic, bold, Montserrat style)
+  ctx.save();
+  ctx.font = 'italic 800 95px Montserrat, sans-serif';
+  ctx.fillStyle = teamStyle.txt;
+  ctx.textBaseline = 'middle';
+  
+  const nameX = teamLogoImg ? 220 : 80;
+  const nameY = headerY + headerHeight / 2;
+  
+  // Text outline for better visibility
+  ctx.strokeStyle = 'rgba(0,0,0,0.3)';
+  ctx.lineWidth = 6;
+  ctx.strokeText(teamName, nameX, nameY);
+  ctx.fillText(teamName, nameX, nameY);
+  ctx.restore();
+
+  // Players grid: 4 columns
+  const cols = 4;
+  const startY = 300;
+  const cellWidth = canvas.width / cols;
+  const cellHeight = 280;
+  const photoSize = 140;
+  const padding = 20;
+
+  for (let i = 0; i < sortedPlayers.length; i++) {
+    const player = sortedPlayers[i];
+    const col = i % cols;
+    const row = Math.floor(i / cols);
+    const x = col * cellWidth;
+    const y = startY + row * cellHeight;
+
+    // Load player photo or use team logo as fallback
+    let playerImg = null;
+    const photoSrc = player.photo || teamLogo;
+    if (photoSrc) {
+      try {
+        playerImg = await loadImage(photoSrc);
+      } catch(e) {
+        console.warn('Could not load player photo:', e);
+      }
+    }
+
+    // Draw player photo/logo (centered in cell)
+    if (playerImg) {
+      const photoX = x + (cellWidth - photoSize) / 2;
+      const photoY = y + padding;
+      
+      // Circular clip
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(photoX + photoSize/2, photoY + photoSize/2, photoSize/2, 0, Math.PI * 2);
+      ctx.closePath();
+      ctx.clip();
+      
+      // Draw image
+      ctx.drawImage(playerImg, photoX, photoY, photoSize, photoSize);
+      ctx.restore();
+      
+      // Photo border
+      ctx.strokeStyle = teamStyle.txt;
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.arc(photoX + photoSize/2, photoY + photoSize/2, photoSize/2, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
+    // Player name (split into first/last for better spacing)
+    const nameParts = player.name.trim().split(' ');
+    const firstName = nameParts[0] || '';
+    const lastName = nameParts.slice(1).join(' ') || '';
+
+    const textY = y + padding + photoSize + 20;
+    const centerX = x + cellWidth / 2;
+
+    // First name (smaller, lighter)
+    ctx.font = '600 22px Montserrat, sans-serif';
+    ctx.fillStyle = teamStyle.txt;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillText(firstName, centerX, textY);
+
+    // Last name (larger, bold)
+    ctx.font = '800 32px Montserrat, sans-serif';
+    ctx.fillStyle = teamStyle.txt;
+    ctx.fillText(lastName, centerX, textY + 28);
+
+    // Jersey number (bold, accent color)
+    ctx.font = '800 50px Montserrat, sans-serif';
+    ctx.fillStyle = teamStyle.txt;
+    
+    // Number with # prefix
+    const numberText = `#${player.number}`;
+    ctx.fillText(numberText, centerX, textY + 70);
+  }
+
+  // Convert canvas to blob and download
+  canvas.toBlob((blob) => {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${teamName.replace(/\s+/g, '_')}_Ficha.png`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast('✓ Ficha generada');
+  }, 'image/png');
+}
+
+// Helper function to load images
+function loadImage(src) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+    img.src = src;
+  });
+}
+
+// ─── INIT ─────────────────────────────────────────────────────────────────────
 // Load: use whichever source (Firebase or localStorage) has the most recent data
 async function initData() {
   const localLoaded = loadFromStorage();
