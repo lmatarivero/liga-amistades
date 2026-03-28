@@ -8,7 +8,11 @@
 const _viewParam = new URLSearchParams(location.search).get('view');
 if (_viewParam === 'standings') {
   document.documentElement.classList.add('view-standings-only');
-} else if (_viewParam === 'public') {
+} else if (_viewParam === 'admin') {
+  // Admin view — will show password gate
+  document.documentElement.classList.add('view-admin-locked');
+} else {
+  // Default is public view
   document.documentElement.classList.add('view-public');
 }
 </script>
@@ -1284,9 +1288,71 @@ if (_viewParam === 'standings') {
 
   .pos-in  { color: var(--muted); }
   .pos-out { color: var(--muted); }
+
+  /* ─── ADMIN LOCKED: hide everything until password entered ─── */
+  .view-admin-locked header,
+  .view-admin-locked main,
+  .view-admin-locked .settings-backdrop,
+  .view-admin-locked .settings-panel { visibility: hidden; }
+
+  /* ─── ADMIN PASSWORD GATE ─── */
+  .admin-gate {
+    position: fixed;
+    inset: 0;
+    background: var(--bg);
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .admin-gate-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 2rem;
+    width: 90%;
+    max-width: 340px;
+    text-align: center;
+  }
+  .admin-gate-box .logo {
+    margin-bottom: 1.5rem;
+    font-size: 1.4rem;
+  }
+  .admin-gate-box input {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: 0.9rem;
+    padding: 0.7rem 0.75rem;
+    width: 100%;
+    outline: none;
+    text-align: center;
+    margin-bottom: 0.75rem;
+  }
+  .admin-gate-box input:focus { border-color: var(--accent); }
+  .admin-gate-error {
+    color: var(--red);
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    margin-bottom: 0.75rem;
+    display: none;
+  }
 </style>
 </head>
 <body>
+
+<!-- Admin password gate (hidden for public/standings views) -->
+<div class="admin-gate" id="admin-gate" style="display:none;">
+  <div class="admin-gate-box">
+    <div class="logo">Liga<span> Amistades</span></div>
+    <label style="font-family:var(--font-mono);font-size:0.65rem;letter-spacing:0.12em;text-transform:uppercase;color:var(--muted);display:block;margin-bottom:0.5rem;">Contraseña de administrador</label>
+    <input type="password" id="admin-pw" placeholder="••••••" onkeydown="if(event.key==='Enter')checkAdminPw()">
+    <div class="admin-gate-error" id="admin-pw-error">Contraseña incorrecta</div>
+    <button class="btn btn-accent" style="width:100%;" onclick="checkAdminPw()">Entrar</button>
+  </div>
+</div>
 
 <header>
   <div class="logo">Liga<span> Amistades</span></div>
@@ -3651,6 +3717,31 @@ async function initData() {
   }
   _fbSyncReady = true;
   initTheme();
+}
+
+// ─── ADMIN PASSWORD GATE ─────────────────────────────────────────────────────
+const ADMIN_PW = 'admin';
+
+function checkAdminPw() {
+  const input = document.getElementById('admin-pw');
+  if (input.value === ADMIN_PW) {
+    document.getElementById('admin-gate').style.display = 'none';
+    document.documentElement.classList.remove('view-admin-locked');
+    sessionStorage.setItem('liga_admin', '1');
+  } else {
+    document.getElementById('admin-pw-error').style.display = 'block';
+    input.value = '';
+    input.focus();
+  }
+}
+
+// Show gate for admin view (unless already authenticated this session)
+if (document.documentElement.classList.contains('view-admin-locked')) {
+  if (sessionStorage.getItem('liga_admin') === '1') {
+    document.documentElement.classList.remove('view-admin-locked');
+  } else {
+    document.getElementById('admin-gate').style.display = 'flex';
+  }
 }
 
 initData();
