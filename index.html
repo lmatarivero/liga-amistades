@@ -4,9 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <script>
-// Apply view=standings class BEFORE render to avoid flash
-if (new URLSearchParams(location.search).get('view') === 'standings') {
+// Apply view classes BEFORE render to avoid flash
+const _viewParam = new URLSearchParams(location.search).get('view');
+if (_viewParam === 'standings') {
   document.documentElement.classList.add('view-standings-only');
+} else if (_viewParam === 'public') {
+  document.documentElement.classList.add('view-public');
 }
 </script>
 <title>Liga Amistades — CLASIFICACION</title>
@@ -72,6 +75,19 @@ if (new URLSearchParams(location.search).get('view') === 'standings') {
   .view-standings-only .standings-view-bar {
     display: flex !important;
   }
+  /* ─── VIEW=PUBLIC MODE ─── */
+  /* Hide: enter tab nav button, gear, enter tab content, game edit/delete, export buttons */
+  .view-public #tab-enter,
+  .view-public .gear-btn,
+  .view-public .game-actions,
+  .view-public .section-header .controls {
+    display: none !important;
+  }
+  /* Only show Tabla and Jornadas nav buttons */
+  .view-public nav button:nth-child(2) {
+    display: none !important;
+  }
+
   @keyframes live-pulse {
     0%,100% { opacity:1; transform:scale(1); }
     50% { opacity:0.4; transform:scale(0.7); }
