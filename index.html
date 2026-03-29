@@ -1673,7 +1673,7 @@ if (_viewParam === 'standings') {
             <div class="logo-upload-area" style="padding:1rem;">
               <input type="file" accept="image/*" onchange="handlePlayerPhotoUpload(event)">
               <img id="pf-photo-preview" class="logo-upload-preview" style="display:none;max-height:60px;">
-              <div class="logo-upload-hint" id="pf-photo-hint">Haz click para subir foto</div>
+              <div class="logo-upload-hint" id="pf-photo-hint">Haz click para subir o pega (Ctrl+V) una imagen</div>
             </div>
           </div>
           <div style="display:flex;gap:0.75rem;">
@@ -3021,11 +3021,11 @@ function openEditPlayer(index) {
   document.getElementById('player-form').scrollIntoView({ behavior: 'smooth' });
 }
 
-async function handlePlayerPhotoUpload(e) {
-  const file = e.target.files[0];
-  if (!file) return;
+async function handlePlayerPhotoFile(file) {
+  if (!file || !file.type.startsWith('image/')) return;
   const hint = document.getElementById('pf-photo-hint');
   hint.textContent = 'Subiendo...';
+  hint.style.display = 'block';
   try {
     const url = await uploadToCloudinary(file, 'jugadores');
     currentPlayerPhoto = url;
@@ -3038,6 +3038,25 @@ async function handlePlayerPhotoUpload(e) {
     console.error(err);
   }
 }
+
+async function handlePlayerPhotoUpload(e) {
+  handlePlayerPhotoFile(e.target.files[0]);
+}
+
+// Paste image from clipboard anywhere while player form is open
+document.addEventListener('paste', function(e) {
+  const form = document.getElementById('player-form');
+  if (!form || form.style.display === 'none') return;
+  const items = e.clipboardData && e.clipboardData.items;
+  if (!items) return;
+  for (const item of items) {
+    if (item.type.startsWith('image/')) {
+      e.preventDefault();
+      handlePlayerPhotoFile(item.getAsFile());
+      return;
+    }
+  }
+});
 
 function savePlayer() {
   const name   = document.getElementById('pf-name').value.trim();
