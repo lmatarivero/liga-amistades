@@ -1670,10 +1670,16 @@ if (_viewParam === 'standings') {
           </div>
           <div class="s-field">
             <label class="s-label">Foto (opcional)</label>
-            <div class="logo-upload-area" style="padding:1rem;">
+            <div id="pf-photo-upload-area" class="logo-upload-area" style="padding:1rem;">
               <input type="file" accept="image/*" onchange="handlePlayerPhotoUpload(event)">
-              <img id="pf-photo-preview" class="logo-upload-preview" style="display:none;max-height:60px;">
               <div class="logo-upload-hint" id="pf-photo-hint">Haz click para subir o pega (Ctrl+V) una imagen</div>
+            </div>
+            <div id="pf-photo-current" style="display:none;text-align:center;padding:0.75rem;background:var(--surface2);border:1px solid var(--border);border-radius:8px;">
+              <img id="pf-photo-preview" style="max-height:80px;border-radius:50%;object-fit:cover;margin-bottom:0.5rem;">
+              <div style="display:flex;gap:0.5rem;justify-content:center;">
+                <button class="btn btn-outline" type="button" style="font-size:0.6rem;" onclick="changePlayerPhoto()">Cambiar foto</button>
+                <button class="btn btn-outline danger" type="button" style="font-size:0.6rem;color:var(--red);border-color:var(--red);" onclick="removePlayerPhoto()">Eliminar</button>
+              </div>
             </div>
           </div>
           <div style="display:flex;gap:0.75rem;">
@@ -2996,8 +3002,7 @@ function openAddPlayer() {
   document.getElementById('pf-name').value = '';
   document.getElementById('pf-number').value = '';
   currentPlayerPhoto = null;
-  document.getElementById('pf-photo-preview').style.display = 'none';
-  document.getElementById('pf-photo-hint').style.display = 'block';
+  showPlayerPhotoState();
   document.getElementById('player-form').style.display = 'block';
   document.getElementById('player-form').scrollIntoView({ behavior: 'smooth' });
 }
@@ -3009,16 +3014,37 @@ function openEditPlayer(index) {
   document.getElementById('pf-name').value = p.name;
   document.getElementById('pf-number').value = p.number || '';
   currentPlayerPhoto = p.photo || null;
-  if (currentPlayerPhoto) {
-    document.getElementById('pf-photo-preview').src = currentPlayerPhoto;
-    document.getElementById('pf-photo-preview').style.display = 'block';
-    document.getElementById('pf-photo-hint').style.display = 'none';
-  } else {
-    document.getElementById('pf-photo-preview').style.display = 'none';
-    document.getElementById('pf-photo-hint').style.display = 'block';
-  }
+  showPlayerPhotoState();
   document.getElementById('player-form').style.display = 'block';
   document.getElementById('player-form').scrollIntoView({ behavior: 'smooth' });
+}
+
+function showPlayerPhotoState() {
+  const uploadArea = document.getElementById('pf-photo-upload-area');
+  const currentArea = document.getElementById('pf-photo-current');
+  if (currentPlayerPhoto) {
+    document.getElementById('pf-photo-preview').src = currentPlayerPhoto;
+    uploadArea.style.display = 'none';
+    currentArea.style.display = 'block';
+  } else {
+    uploadArea.style.display = '';
+    currentArea.style.display = 'none';
+    document.getElementById('pf-photo-hint').textContent = 'Haz click para subir o pega (Ctrl+V) una imagen';
+    document.getElementById('pf-photo-hint').style.display = 'block';
+  }
+}
+
+function changePlayerPhoto() {
+  currentPlayerPhoto = null;
+  document.getElementById('pf-photo-upload-area').style.display = '';
+  document.getElementById('pf-photo-current').style.display = 'none';
+  document.getElementById('pf-photo-hint').textContent = 'Haz click para subir o pega (Ctrl+V) una imagen';
+  document.getElementById('pf-photo-hint').style.display = 'block';
+}
+
+function removePlayerPhoto() {
+  currentPlayerPhoto = null;
+  showPlayerPhotoState();
 }
 
 async function handlePlayerPhotoFile(file) {
@@ -3029,9 +3055,7 @@ async function handlePlayerPhotoFile(file) {
   try {
     const url = await uploadToCloudinary(file, 'jugadores');
     currentPlayerPhoto = url;
-    document.getElementById('pf-photo-preview').src = url;
-    document.getElementById('pf-photo-preview').style.display = 'block';
-    hint.style.display = 'none';
+    showPlayerPhotoState();
   } catch(err) {
     hint.textContent = 'Error al subir foto';
     hint.style.display = 'block';
