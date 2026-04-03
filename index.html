@@ -969,26 +969,12 @@ if (_viewParam === 'standings') {
     background: var(--surface);
     color: var(--text);
   }
-  /* When used as td, make inner content flex */
   td.horario-team-row { vertical-align: middle; }
-  td.horario-team-row > * { vertical-align: middle; }
-  td.horario-team-row img,
-  td.horario-team-row .team-logo,
-  td.horario-team-row span,
-  td.horario-team-row select { display: inline-flex; vertical-align: middle; margin-right: 0.4rem; }
   .horario-team-row .team-logo { width: 30px !important; height: 30px !important; font-size: 0.55rem !important; }
 
-  .horario-team-row select {
-    background: var(--surface2);
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    color: var(--text);
-    font-family: var(--font-body);
-    font-size: 0.75rem;
-    padding: 0.3rem 0.4rem;
-    flex: 1;
-    cursor: pointer;
-  }
+  .horario-team-row .custom-select-wrap { position: relative; }
+  .horario-team-row .custom-select-btn { padding: 0.35rem 0.5rem; font-size: 0.78rem; }
+  .horario-team-row .custom-select-dropdown { min-width: 200px; }
 
   .horario-time-input {
     background: transparent;
@@ -3355,6 +3341,7 @@ function renderHorario() {
     if (s.home) usedTeams.add(s.home);
   }));
 
+  _horarioDropdownId = 0;
   container.innerHTML = '';
 
   // Wrapper for export capture
@@ -3409,7 +3396,7 @@ function renderHorario() {
       const slot = campo.slots[si];
       if (!slot) { td.innerHTML = '&nbsp;'; }
       else if (isAdmin) {
-        td.innerHTML = buildTeamSelect(slot.visitor, `updateHorarioSlot(${j},${ci},${si},'visitor',this.value)`, usedTeams);
+        td.innerHTML = buildTeamSelect(slot.visitor, j, ci, si, 'visitor', usedTeams);
       } else {
         td.innerHTML = buildTeamDisplay(slot.visitor);
       }
@@ -3425,7 +3412,7 @@ function renderHorario() {
       const slot = campo.slots[si];
       if (!slot) { td.innerHTML = '&nbsp;'; }
       else if (isAdmin) {
-        td.innerHTML = buildTeamSelect(slot.home, `updateHorarioSlot(${j},${ci},${si},'home',this.value)`, usedTeams);
+        td.innerHTML = buildTeamSelect(slot.home, j, ci, si, 'home', usedTeams);
       } else {
         td.innerHTML = buildTeamDisplay(slot.home);
       }
@@ -3494,27 +3481,47 @@ function buildTeamDisplay(teamName) {
   return `${logoHtml}<span>${teamName}</span>`;
 }
 
-function buildTeamSelect(selected, onchangeStr, usedTeams) {
+let _horarioDropdownId = 0;
+
+function buildTeamSelect(selected, j, ci, si, field, usedTeams) {
   usedTeams = usedTeams || new Set();
-  let opts = '<option value="">-- Equipo --</option>';
-  TEAMS.forEach(t => {
+  const uid = `hdd-${_horarioDropdownId++}`;
+  const logoHtml = selected ? makeLogoEl(selected, true) : '<div class="team-logo team-logo-sm" style="background:var(--surface2);color:var(--muted);">?</div>';
+  const label = selected || 'Seleccionar equipo';
+  const labelStyle = selected ? '' : 'color:var(--muted);font-weight:400;';
+
+  // Build options
+  let optsHtml = '';
+  [...TEAMS].sort((a, b) => a.name.localeCompare(b.name)).forEach(t => {
     const isSelf = t.name === selected;
     const isUsed = !isSelf && usedTeams.has(t.name);
-    opts += `<option value="${t.name}"${isSelf ? ' selected' : ''}${isUsed ? ' disabled style="color:#555;"' : ''}>${t.name}${isUsed ? ' (asignado)' : ''}</option>`;
+    const opacity = isUsed ? 'opacity:0.35;pointer-events:none;' : '';
+    optsHtml += `<div class="custom-option" style="${opacity}" onclick="event.stopPropagation();${isUsed ? 'return;' : ''}updateHorarioSlot(${j},${ci},${si},'${field}',this.dataset.team);closeAllHorarioDropdowns();" data-team="${t.name}">${makeLogoEl(t.name, true)}<span>${t.name}</span></div>`;
   });
-  // Show logo if selected
-  let logoHtml = '';
-  if (selected) {
-    const logo = teamLogos[selected];
-    const s = TEAM_STYLES[selected] || { bg: '#333', txt: '#fff', abbr: (selected || '?').slice(0,2).toUpperCase() };
-    if (logo) {
-      logoHtml = `<img src="${logo}" style="width:30px;height:30px;border-radius:50%;object-fit:cover;border:2px solid rgba(255,255,255,0.15);flex-shrink:0;vertical-align:middle;">`;
-    } else {
-      logoHtml = `<div class="team-logo team-logo-sm" style="background:${s.bg};color:${s.txt};width:30px;height:30px;font-size:0.55rem;display:inline-flex;vertical-align:middle;">${s.abbr}</div>`;
-    }
-  }
-  return `<div style="display:flex;align-items:center;gap:0.4rem;width:100%;">${logoHtml}<select onchange="${onchangeStr}" class="horario-edit-controls" style="flex:1;">${opts}</select></div>`;
+
+  return `<div class="custom-select-wrap horario-edit-controls" style="width:100%;">
+    <div class="custom-select-btn" id="btn-${uid}" onclick="toggleHorarioDropdown('${uid}',event)" style="padding:0.4rem 0.6rem;font-size:0.78rem;">
+      ${logoHtml}<span style="${labelStyle}">${label}</span><span class="chevron">&#9660;</span>
+    </div>
+    <div class="custom-select-dropdown" id="dd-${uid}">${optsHtml}</div>
+  </div>`;
 }
+
+function toggleHorarioDropdown(uid, event) {
+  event.stopPropagation();
+  const dd = document.getElementById('dd-' + uid);
+  const btn = document.getElementById('btn-' + uid);
+  const isOpen = dd.classList.contains('open');
+  closeAllHorarioDropdowns();
+  if (!isOpen) { dd.classList.add('open'); btn.classList.add('open'); }
+}
+
+function closeAllHorarioDropdowns() {
+  document.querySelectorAll('#horario-capture .custom-select-dropdown.open').forEach(d => d.classList.remove('open'));
+  document.querySelectorAll('#horario-capture .custom-select-btn.open').forEach(b => b.classList.remove('open'));
+}
+
+document.addEventListener('click', closeAllHorarioDropdowns);
 
 function updateHorarioSlot(j, campoIdx, slotIdx, field, value) {
   if (!horarios[j]) return;
@@ -3576,39 +3583,24 @@ function removeCampo(j, campoIdx) {
 function exportHorarioImage() {
   const el = document.getElementById('horario-capture');
   if (!el) { showToast('No hay horario para exportar'); return; }
-  // Hide admin controls for capture
-  const adminEls = el.querySelectorAll('.horarios-admin-only, .horario-edit-controls');
-  adminEls.forEach(e => e.style.display = 'none');
-  // Replace select elements with text display for capture
-  const selects = el.querySelectorAll('select');
-  const selectBackups = [];
-  selects.forEach(s => {
-    const span = document.createElement('span');
-    span.textContent = s.options[s.selectedIndex]?.text || '';
-    span.className = 'horario-export-text';
-    s.style.display = 'none';
-    s.parentNode.insertBefore(span, s);
-    selectBackups.push({ select: s, span });
-  });
+  // Hide admin-only controls and edit elements for capture
+  const hidden = el.querySelectorAll('.horarios-admin-only, .horario-edit-controls, .horario-time-input, .chevron');
+  hidden.forEach(e => e.style.display = 'none');
   // Replace time inputs with plain text
   const inputs = el.querySelectorAll('.horario-time-input');
   const inputBackups = [];
   inputs.forEach(inp => {
     const span = document.createElement('span');
     span.textContent = inp.value;
-    span.style.cssText = 'font-family:var(--font-mono);font-size:0.7rem;color:#ccc;';
-    inp.style.display = 'none';
+    span.style.cssText = 'font-family:var(--font-mono);font-size:0.7rem;color:var(--muted);';
     inp.parentNode.insertBefore(span, inp);
     inputBackups.push({ input: inp, span });
   });
 
   html2canvas(el, { backgroundColor: '#12121e', scale: 2, useCORS: true }).then(canvas => {
-    // Restore admin controls
-    adminEls.forEach(e => e.style.display = '');
-    selectBackups.forEach(({select, span}) => { select.style.display = ''; span.remove(); });
-    inputBackups.forEach(({input, span}) => { input.style.display = ''; span.remove(); });
+    hidden.forEach(e => e.style.display = '');
+    inputBackups.forEach(({span}) => span.remove());
 
-    // Add padding
     const pad = 40;
     const final = document.createElement('canvas');
     final.width = canvas.width + pad * 2;
@@ -3617,8 +3609,6 @@ function exportHorarioImage() {
     ctx.fillStyle = '#12121e';
     ctx.fillRect(0, 0, final.width, final.height);
     ctx.drawImage(canvas, pad, pad);
-
-    // Watermark
     ctx.fillStyle = 'rgba(255,255,255,0.12)';
     ctx.font = '24px sans-serif';
     ctx.textAlign = 'right';
@@ -3631,9 +3621,8 @@ function exportHorarioImage() {
     link.click();
     showToast('✓ Horario exportado');
   }).catch(() => {
-    adminEls.forEach(e => e.style.display = '');
-    selectBackups.forEach(({select, span}) => { select.style.display = ''; span.remove(); });
-    inputBackups.forEach(({input, span}) => { input.style.display = ''; span.remove(); });
+    hidden.forEach(e => e.style.display = '');
+    inputBackups.forEach(({span}) => span.remove());
     showToast('⚠ Error al exportar');
   });
 }
