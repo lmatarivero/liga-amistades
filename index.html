@@ -3487,6 +3487,9 @@ function buildTeamSelect(selected, j, ci, si, field, usedTeams) {
 
   // Build options
   let optsHtml = '';
+  if (selected) {
+    optsHtml += `<div class="custom-option" style="color:var(--muted);border-bottom:1px solid var(--border);" onclick="event.stopPropagation();updateHorarioSlot(${j},${ci},${si},'${field}','');closeAllHorarioDropdowns();"><span style="font-size:0.75rem;">✕ Quitar equipo</span></div>`;
+  }
   [...TEAMS].sort((a, b) => a.name.localeCompare(b.name)).forEach(t => {
     const isSelf = t.name === selected;
     const isUsed = !isSelf && usedTeams.has(t.name);
