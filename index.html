@@ -905,7 +905,8 @@ if (_viewParam === 'standings') {
   .horario-block { margin-bottom: 2rem; }
 
   .horario-title-bar {
-    background: #1a1a2e;
+    background: var(--surface);
+    border: 1px solid var(--border);
     border-radius: 8px 8px 0 0;
     padding: 0.75rem 1.25rem;
     display: flex;
@@ -917,7 +918,7 @@ if (_viewParam === 'standings') {
     font-family: var(--font-display);
     font-size: 1.6rem;
     font-weight: 900;
-    color: #fff;
+    color: var(--accent);
     margin: 0;
     letter-spacing: 0.05em;
   }
@@ -926,25 +927,25 @@ if (_viewParam === 'standings') {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
     gap: 0;
-    border: 2px solid #333;
+    border: 1px solid var(--border);
     border-top: none;
   }
 
   .horario-campo {
-    border-right: 2px solid #333;
+    border-right: 1px solid var(--border);
   }
   .horario-campo:last-child { border-right: none; }
 
   .horario-campo-header {
-    background: #2a2a3e;
+    background: var(--surface2);
     padding: 0.4rem 0.6rem;
     font-family: var(--font-mono);
     font-size: 0.7rem;
     font-weight: 700;
-    color: #ccc;
+    color: var(--muted);
     letter-spacing: 0.08em;
     text-align: center;
-    border-bottom: 1px solid #444;
+    border-bottom: 1px solid var(--border);
   }
 
   .horario-slot-label {
@@ -955,10 +956,10 @@ if (_viewParam === 'standings') {
     text-align: center;
     letter-spacing: 0.06em;
     text-transform: uppercase;
+    background: var(--surface2);
+    color: var(--accent);
+    border-bottom: 1px solid var(--border);
   }
-  .horario-slot-label.primera { background: #b8860b; color: #fff; }
-  .horario-slot-label.segunda { background: #228b22; color: #fff; }
-  .horario-slot-label.tercera { background: #1e6fa0; color: #fff; }
 
   .horario-team-row {
     display: flex;
@@ -969,9 +970,10 @@ if (_viewParam === 'standings') {
     font-size: 0.82rem;
     font-weight: 700;
     min-height: 42px;
+    background: var(--surface);
+    color: var(--text);
+    border-bottom: 1px solid var(--border);
   }
-  .horario-team-row.visitor { background: #1a2744; color: #cde; border-bottom: 1px solid #333; }
-  .horario-team-row.home { background: #3a1a1a; color: #ecc; border-bottom: 1px solid #444; }
   .horario-team-row .team-logo { width: 30px !important; height: 30px !important; font-size: 0.55rem !important; }
 
   .horario-team-row select {
@@ -988,9 +990,9 @@ if (_viewParam === 'standings') {
 
   .horario-time-input {
     background: transparent;
-    border: 1px solid #555;
+    border: 1px solid var(--border);
     border-radius: 3px;
-    color: #ccc;
+    color: var(--muted);
     font-family: var(--font-mono);
     font-size: 0.65rem;
     padding: 0.2rem 0.3rem;
@@ -999,16 +1001,16 @@ if (_viewParam === 'standings') {
   }
 
   .horario-footer {
-    background: #1a1a2e;
+    background: var(--surface);
     border-radius: 0 0 8px 8px;
     padding: 0.5rem 1rem;
     font-family: var(--font-body);
     font-size: 0.7rem;
     font-weight: 700;
-    color: var(--accent);
+    color: var(--muted);
     text-align: center;
     letter-spacing: 0.06em;
-    border: 2px solid #333;
+    border: 1px solid var(--border);
     border-top: none;
   }
 
@@ -1031,7 +1033,7 @@ if (_viewParam === 'standings') {
     gap: 0.3rem;
     padding: 0.2rem;
     background: var(--surface2);
-    border-bottom: 1px solid #444;
+    border-bottom: 1px solid var(--border);
   }
 
   /* Hide admin controls in public/standings modes */
