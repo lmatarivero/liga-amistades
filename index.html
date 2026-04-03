@@ -3334,12 +3334,7 @@ function renderHorario() {
   const numCampos = data.campos.length;
   const maxSlots = Math.max(...data.campos.map(c => c.slots.length));
 
-  // Collect all teams already assigned in this jornada
-  const usedTeams = new Set();
-  data.campos.forEach(c => c.slots.forEach(s => {
-    if (s.visitor) usedTeams.add(s.visitor);
-    if (s.home) usedTeams.add(s.home);
-  }));
+  // No global usedTeams — grayout is per-game (same slot only)
 
   _horarioDropdownId = 0;
   container.innerHTML = '';
@@ -3396,7 +3391,7 @@ function renderHorario() {
       const slot = campo.slots[si];
       if (!slot) { td.innerHTML = '&nbsp;'; }
       else if (isAdmin) {
-        td.innerHTML = buildTeamSelect(slot.visitor, j, ci, si, 'visitor', usedTeams);
+        td.innerHTML = buildTeamSelect(slot.visitor, j, ci, si, 'visitor', new Set(slot.home ? [slot.home] : []));
       } else {
         td.innerHTML = buildTeamDisplay(slot.visitor);
       }
@@ -3412,7 +3407,7 @@ function renderHorario() {
       const slot = campo.slots[si];
       if (!slot) { td.innerHTML = '&nbsp;'; }
       else if (isAdmin) {
-        td.innerHTML = buildTeamSelect(slot.home, j, ci, si, 'home', usedTeams);
+        td.innerHTML = buildTeamSelect(slot.home, j, ci, si, 'home', new Set(slot.visitor ? [slot.visitor] : []));
       } else {
         td.innerHTML = buildTeamDisplay(slot.home);
       }
