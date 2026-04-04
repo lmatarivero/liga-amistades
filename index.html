@@ -3358,7 +3358,7 @@ function renderHorario() {
     // Spacer row between time slots
     if (si > 0) {
       const spacer = document.createElement('tr');
-      spacer.innerHTML = `<td colspan="${numCampos}" style="height:0.6rem;background:var(--bg);border:none;"></td>`;
+      spacer.innerHTML = `<td colspan="${numCampos}" style="height:0.6rem;background:var(--bg);border:none;border-bottom:2px solid var(--border);"></td>`;
       table.appendChild(spacer);
     }
     // Row: campo headers with time
