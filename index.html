@@ -961,11 +961,11 @@ if (_viewParam === 'standings') {
   }
 
   .horario-team-row {
-    padding: 0.65rem 0.75rem;
+    padding: 0.72rem 0.75rem;
     font-family: var(--font-body);
-    font-size: 0.9rem;
+    font-size: 1rem;
     font-weight: 800;
-    min-height: 54px;
+    min-height: 58px;
     background: var(--surface);
     color: var(--text);
   }
@@ -3475,11 +3475,11 @@ function buildTeamDisplay(teamName) {
   const s = TEAM_STYLES[teamName] || { bg: '#333', txt: '#fff', abbr: (teamName || '?').slice(0,2).toUpperCase() };
   let logoHtml;
   if (logo) {
-    logoHtml = `<img src="${logo}" style="width:32px;height:32px;border-radius:50%;object-fit:cover;border:2px solid rgba(255,255,255,0.15);flex-shrink:0;">`;
+    logoHtml = `<img src="${logo}" style="width:38px;height:38px;border-radius:50%;object-fit:cover;border:2px solid rgba(255,255,255,0.15);flex-shrink:0;">`;
   } else {
-    logoHtml = `<div class="team-logo team-logo-sm" style="background:${s.bg};color:${s.txt};width:32px;height:32px;font-size:0.55rem;flex-shrink:0;">${s.abbr}</div>`;
+    logoHtml = `<div class="team-logo" style="background:${s.bg};color:${s.txt};width:38px;height:38px;font-size:0.65rem;flex-shrink:0;">${s.abbr}</div>`;
   }
-  return `<div style="display:flex;align-items:center;gap:0.5rem;">${logoHtml}<span style="font-size:0.9rem;">${teamName}</span></div>`;
+  return `<div style="display:flex;align-items:center;gap:0.6rem;">${logoHtml}<span class="team-name" style="font-size:1.05rem;">${teamName}</span></div>`;
 }
 
 let _horarioDropdownId = 0;
