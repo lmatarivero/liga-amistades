@@ -3327,7 +3327,11 @@ function renderHorario() {
   if (!container) return;
   const j = getSelectedHorarioJornada();
 
-  if (!horarios[j]) horarios[j] = getDefaultHorario();
+  if (!horarios[j]) {
+    horarios[j] = getDefaultHorario();
+    saveToStorage();
+    if (window.saveToFirebase) { const raw = localStorage.getItem(STORAGE_KEY); if (raw) window.saveToFirebase(JSON.parse(raw)); }
+  }
   const data = horarios[j];
   const isAdmin = !document.documentElement.classList.contains('view-public') &&
                   !document.documentElement.classList.contains('view-admin-locked');
