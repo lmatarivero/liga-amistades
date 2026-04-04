@@ -3581,9 +3581,12 @@ function removeCampo(j, campoIdx) {
 function exportHorarioImage() {
   const el = document.getElementById('horario-capture');
   if (!el) { showToast('No hay horario para exportar'); return; }
-  // Hide admin-only controls and edit elements for capture
-  const hidden = el.querySelectorAll('.horarios-admin-only, .horario-edit-controls, .horario-time-input, .chevron');
+  // Hide admin-only controls, dropdown lists, chevrons, time inputs
+  const hidden = el.querySelectorAll('.horarios-admin-only, .custom-select-dropdown, .chevron, .horario-time-input');
   hidden.forEach(e => e.style.display = 'none');
+  // Make dropdown buttons look like plain text (remove border/bg)
+  const btns = el.querySelectorAll('.custom-select-btn');
+  btns.forEach(b => { b.dataset.oldStyle = b.style.cssText; b.style.cssText += 'border:none;background:transparent;padding:0.4rem 0.6rem;cursor:default;'; });
   // Replace time inputs with plain text
   const inputs = el.querySelectorAll('.horario-time-input');
   const inputBackups = [];
@@ -3597,6 +3600,7 @@ function exportHorarioImage() {
 
   html2canvas(el, { backgroundColor: '#12121e', scale: 2, useCORS: true }).then(canvas => {
     hidden.forEach(e => e.style.display = '');
+    btns.forEach(b => { b.style.cssText = b.dataset.oldStyle || ''; });
     inputBackups.forEach(({span}) => span.remove());
 
     const pad = 40;
@@ -3620,6 +3624,7 @@ function exportHorarioImage() {
     showToast('✓ Horario exportado');
   }).catch(() => {
     hidden.forEach(e => e.style.display = '');
+    btns.forEach(b => { b.style.cssText = b.dataset.oldStyle || ''; });
     inputBackups.forEach(({span}) => span.remove());
     showToast('⚠ Error al exportar');
   });
