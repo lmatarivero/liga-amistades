@@ -1026,12 +1026,18 @@ if (_viewParam === 'standings') {
   .view-standings-only #tab-horarios { display: none !important; }
 
   @media (max-width: 600px) {
-    .horario-grid { grid-template-columns: 1fr 1fr; }
-    .horario-team-row { font-size: 0.7rem; padding: 0.4rem; gap: 0.3rem; }
-    .horario-team-row .team-logo { width: 22px !important; height: 22px !important; }
-    .horario-campo-header { font-size: 0.6rem; }
-    .horario-slot-label { font-size: 0.65rem; }
+    #horario-display { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    .horario-table { min-width: 600px; }
+    .horario-table td.horario-team-row { padding: 0.5rem 0.6rem; font-size: 0.8rem; }
+    .horario-team-row .team-logo,
+    .horario-team-row .team-logo-sm { width: 26px !important; height: 26px !important; font-size: 0.5rem !important; }
+    .horario-team-row .team-name { font-size: 0.85rem; }
+    .horario-campo-header { font-size: 0.6rem; padding: 0.35rem 0.4rem; }
+    .horario-slot-label { font-size: 0.65rem; padding: 0.3rem 0.4rem; }
+    .horario-title-bar { padding: 0.7rem 1rem; }
     .horario-title-bar h2 { font-size: 1.2rem; }
+    .horario-footer { font-size: 0.6rem; padding: 0.45rem 0.6rem; }
+    .horario-team-row .custom-select-btn { padding: 0.3rem 0.4rem; font-size: 0.7rem; }
   }
   .game-action-sm.danger:hover { color: var(--red); border-color: var(--red); }
 
