@@ -3355,6 +3355,12 @@ function renderHorario() {
   table.className = 'horario-table';
 
   for (let si = 0; si < maxSlots; si++) {
+    // Spacer row between time slots
+    if (si > 0) {
+      const spacer = document.createElement('tr');
+      spacer.innerHTML = `<td colspan="${numCampos}" style="height:0.6rem;background:var(--bg);border:none;"></td>`;
+      table.appendChild(spacer);
+    }
     // Row: campo headers with time
     const hdrRow = document.createElement('tr');
     data.campos.forEach((campo, ci) => {
