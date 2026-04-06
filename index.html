@@ -68,6 +68,7 @@ if (_viewParam === 'standings') {
   .view-standings-only #tab-enter,
   .view-standings-only #tab-jornadas,
   .view-standings-only #tab-horarios,
+  .view-standings-only #tab-playoffs,
   .view-standings-only #tab-standings .section-header {
     display: none !important;
   }
@@ -1039,6 +1040,166 @@ if (_viewParam === 'standings') {
   }
   .game-action-sm.danger:hover { color: var(--red); border-color: var(--red); }
 
+  /* ─── PLAYOFFS BRACKET ─── */
+  .bracket-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .bracket {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1.2fr 1fr 1fr;
+    gap: 0;
+    min-width: 800px;
+    padding: 1.5rem 0.5rem;
+    align-items: center;
+  }
+
+  .bracket-round {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    padding: 0 0.4rem;
+  }
+  .bracket-round.qf { gap: 2rem; }
+  .bracket-round.sf { gap: 4rem; padding-top: 2rem; }
+  .bracket-round.final { align-items: center; }
+
+  .bracket-round-label {
+    font-family: var(--font-mono);
+    font-size: 0.6rem;
+    font-weight: 700;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    text-align: center;
+    margin-bottom: 0.5rem;
+  }
+
+  .bracket-matchup {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+
+  .bracket-team {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.6rem 0.75rem;
+    font-family: var(--font-body);
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--text);
+    position: relative;
+  }
+  .bracket-team:first-child { border-bottom: 1px solid var(--border); }
+  .bracket-team.winner { background: rgba(74, 232, 122, 0.08); }
+  .bracket-team.winner .bracket-team-name { color: var(--green); font-weight: 800; }
+  .bracket-team.loser { opacity: 0.45; }
+
+  .bracket-seed {
+    font-family: var(--font-mono);
+    font-size: 0.6rem;
+    font-weight: 800;
+    color: var(--accent);
+    min-width: 18px;
+    text-align: center;
+  }
+
+  .bracket-team-name {
+    flex: 1;
+    font-family: var(--font-body);
+    font-weight: 800;
+    font-size: 0.9rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .bracket-team .team-logo,
+  .bracket-team .team-logo-sm {
+    width: 28px !important;
+    height: 28px !important;
+    font-size: 0.5rem !important;
+    flex-shrink: 0;
+  }
+
+  .bracket-score {
+    font-family: var(--font-mono);
+    font-size: 1.1rem;
+    font-weight: 800;
+    min-width: 30px;
+    text-align: center;
+    color: var(--accent);
+  }
+
+  .bracket-score-input {
+    width: 40px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--accent);
+    font-family: var(--font-mono);
+    font-size: 1rem;
+    font-weight: 800;
+    text-align: center;
+    padding: 0.2rem;
+    -moz-appearance: textfield;
+  }
+  .bracket-score-input::-webkit-inner-spin-button { -webkit-appearance: none; }
+
+  .bracket-tbd {
+    color: var(--muted);
+    font-style: italic;
+    font-weight: 400;
+    font-size: 0.8rem;
+  }
+
+  .bracket-champion {
+    text-align: center;
+    padding: 1rem;
+  }
+  .bracket-champion-label {
+    font-family: var(--font-display);
+    font-size: 0.7rem;
+    font-weight: 800;
+    color: var(--accent);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    margin-bottom: 0.5rem;
+  }
+  .bracket-champion-team {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.6rem;
+    font-family: var(--font-display);
+    font-size: 1.3rem;
+    font-weight: 900;
+    color: var(--green);
+  }
+  .bracket-champion-team .team-logo,
+  .bracket-champion-team .team-logo-sm {
+    width: 48px !important;
+    height: 48px !important;
+  }
+
+  .view-public .playoffs-admin-only,
+  .view-standings-only #tab-playoffs { display: none !important; }
+
+  @media (max-width: 600px) {
+    .bracket { min-width: 700px; padding: 1rem 0.3rem; }
+    .bracket-team { padding: 0.5rem 0.5rem; font-size: 0.75rem; }
+    .bracket-team-name { font-size: 0.75rem; }
+    .bracket-team .team-logo,
+    .bracket-team .team-logo-sm { width: 22px !important; height: 22px !important; }
+    .bracket-score { font-size: 0.9rem; }
+    .bracket-score-input { width: 34px; font-size: 0.85rem; }
+    .bracket-champion-team { font-size: 1rem; }
+  }
+
   .empty-state {
     text-align: center;
     padding: 4rem 2rem;
@@ -1501,6 +1662,7 @@ if (_viewParam === 'standings') {
     <button onclick="showTab('enter', this)">+ Resultado</button>
     <button onclick="showTab('jornadas', this)">Jornadas</button>
     <button onclick="showTab('horarios', this)">Horarios</button>
+    <button onclick="showTab('playoffs', this)">Playoffs</button>
   </nav>
   <button class="theme-btn" onclick="toggleTheme()" title="Cambiar tema" id="theme-btn">☀</button>
   <button class="gear-btn" onclick="openSettings()" title="Configuración">⚙</button>
@@ -1618,6 +1780,19 @@ if (_viewParam === 'standings') {
       </div>
     </div>
     <div id="horario-display"></div>
+  </div>
+
+  <!-- PLAYOFFS TAB -->
+  <div class="tab-content" id="tab-playoffs">
+    <div class="section-header">
+      <div class="section-title">Playoffs</div>
+      <div class="controls">
+        <button class="btn btn-accent playoffs-admin-only" onclick="seedPlayoffs()">Generar Bracket</button>
+        <button class="btn btn-outline playoffs-admin-only" onclick="resetPlayoffs()" style="color:var(--red);border-color:var(--red);">Resetear</button>
+        <button class="btn btn-outline" onclick="exportPlayoffImage()">&#11015; Exportar imagen</button>
+      </div>
+    </div>
+    <div id="playoff-display"></div>
   </div>
 
 </main>
@@ -2689,9 +2864,10 @@ function showTab(name, btn) {
   document.getElementById(`tab-${name}`).classList.add('active');
   // Find the button that corresponds to this tab
   const btns = document.querySelectorAll('nav button');
-  const map = { standings: 0, enter: 1, jornadas: 2, horarios: 3 };
+  const map = { standings: 0, enter: 1, jornadas: 2, horarios: 3, playoffs: 4 };
   btns[map[name]].classList.add('active');
   if (name === 'horarios') { populateHorarioJornadaSelect(); renderHorario(); }
+  if (name === 'playoffs') renderPlayoffs();
 }
 
 // ─── TOAST ───────────────────────────────────────────────────────────────────
@@ -3648,6 +3824,242 @@ function exportHorarioImage() {
   });
 }
 
+// ─── PLAYOFFS BRACKET ───────────────────────────────────────────────────────
+
+const playoffs = {};
+
+function seedPlayoffs() {
+  const sorted = getSorted();
+  if (sorted.length < 8) { showToast('Se necesitan al menos 8 equipos en la clasificación'); return; }
+  if (playoffs.seeded && !confirm('¿Regenerar el bracket? Se perderán los resultados actuales.')) return;
+
+  const top8 = sorted.slice(0, 8);
+  playoffs.seeded = true;
+  playoffs.rounds = [
+    // Quarterfinals: 1v8, 4v5 (left), 2v7, 3v6 (right)
+    [
+      { seed1: 1, team1: top8[0].name, score1: null, seed2: 8, team2: top8[7].name, score2: null },
+      { seed1: 4, team1: top8[3].name, score1: null, seed2: 5, team2: top8[4].name, score2: null },
+      { seed1: 2, team1: top8[1].name, score1: null, seed2: 7, team2: top8[6].name, score2: null },
+      { seed1: 3, team1: top8[2].name, score1: null, seed2: 6, team2: top8[5].name, score2: null },
+    ],
+    // Semifinals
+    [
+      { team1: null, score1: null, team2: null, score2: null },
+      { team1: null, score1: null, team2: null, score2: null },
+    ],
+    // Final
+    [
+      { team1: null, score1: null, team2: null, score2: null },
+    ]
+  ];
+  advanceBracket();
+  saveToStorage();
+  if (window.saveToFirebase) { const raw = localStorage.getItem(STORAGE_KEY); if (raw) window.saveToFirebase(JSON.parse(raw)); }
+  renderPlayoffs();
+  showToast('✓ Bracket generado con los top 8');
+}
+
+function getMatchupWinner(m) {
+  if (m.score1 === null || m.score2 === null || m.score1 === '' || m.score2 === '') return null;
+  const s1 = parseInt(m.score1), s2 = parseInt(m.score2);
+  if (isNaN(s1) || isNaN(s2)) return null;
+  if (s1 > s2) return m.team1;
+  if (s2 > s1) return m.team2;
+  return null; // tie — no winner yet
+}
+
+function advanceBracket() {
+  if (!playoffs.rounds) return;
+  const qf = playoffs.rounds[0];
+  const sf = playoffs.rounds[1];
+  const fin = playoffs.rounds[2];
+
+  // QF → SF
+  sf[0].team1 = getMatchupWinner(qf[0]);
+  sf[0].team2 = getMatchupWinner(qf[1]);
+  sf[1].team1 = getMatchupWinner(qf[2]);
+  sf[1].team2 = getMatchupWinner(qf[3]);
+
+  // SF → Final
+  fin[0].team1 = getMatchupWinner(sf[0]);
+  fin[0].team2 = getMatchupWinner(sf[1]);
+}
+
+function updatePlayoffScore(round, matchup, which, value) {
+  if (!playoffs.rounds) return;
+  const v = value === '' ? null : parseInt(value);
+  playoffs.rounds[round][matchup][which] = (isNaN(v) ? null : v);
+  advanceBracket();
+  saveToStorage();
+  if (window.saveToFirebase) { const raw = localStorage.getItem(STORAGE_KEY); if (raw) window.saveToFirebase(JSON.parse(raw)); }
+  renderPlayoffs();
+}
+
+function resetPlayoffs() {
+  if (!confirm('¿Resetear el bracket de playoffs?')) return;
+  Object.keys(playoffs).forEach(k => delete playoffs[k]);
+  saveToStorage();
+  if (window.saveToFirebase) { const raw = localStorage.getItem(STORAGE_KEY); if (raw) window.saveToFirebase(JSON.parse(raw)); }
+  renderPlayoffs();
+  showToast('Bracket reseteado');
+}
+
+function renderPlayoffs() {
+  const container = document.getElementById('playoff-display');
+  if (!container) return;
+  container.innerHTML = '';
+
+  if (!playoffs.seeded || !playoffs.rounds) {
+    container.innerHTML = '<div class="empty-state">Presiona "Generar Bracket" para crear el bracket con los top 8 equipos</div>';
+    return;
+  }
+
+  const isAdmin = !document.documentElement.classList.contains('view-public') &&
+                  !document.documentElement.classList.contains('view-admin-locked');
+  const qf = playoffs.rounds[0];
+  const sf = playoffs.rounds[1];
+  const fin = playoffs.rounds[2];
+  const champion = getMatchupWinner(fin[0]);
+
+  const wrap = document.createElement('div');
+  wrap.id = 'playoff-capture';
+
+  const bwrap = document.createElement('div');
+  bwrap.className = 'bracket-wrap';
+
+  const bracket = document.createElement('div');
+  bracket.className = 'bracket';
+
+  // Helper: render a matchup card
+  function renderMatchup(m, round, idx) {
+    const winner = getMatchupWinner(m);
+    const card = document.createElement('div');
+    card.className = 'bracket-matchup';
+
+    [1, 2].forEach(n => {
+      const team = m[`team${n}`];
+      const score = m[`score${n}`];
+      const seed = m[`seed${n}`];
+      const isWinner = winner && winner === team;
+      const isLoser = winner && winner !== team;
+
+      const row = document.createElement('div');
+      row.className = 'bracket-team' + (isWinner ? ' winner' : '') + (isLoser ? ' loser' : '');
+
+      if (team) {
+        const seedHtml = seed ? `<span class="bracket-seed">${seed}</span>` : '';
+        const logoHtml = makeLogoEl(team, true);
+        let scoreHtml;
+        if (isAdmin) {
+          const val = score !== null && score !== undefined ? score : '';
+          scoreHtml = `<input type="number" class="bracket-score-input playoffs-admin-only" value="${val}" min="0" onchange="updatePlayoffScore(${round},${idx},${n === 1 ? "'score1'" : "'score2'"},this.value)">`;
+        } else {
+          scoreHtml = score !== null && score !== undefined ? `<span class="bracket-score">${score}</span>` : '';
+        }
+        row.innerHTML = `${seedHtml}${logoHtml}<span class="bracket-team-name">${team}</span>${scoreHtml}`;
+      } else {
+        row.innerHTML = '<span class="bracket-tbd">— Por definir —</span>';
+      }
+      card.appendChild(row);
+    });
+    return card;
+  }
+
+  // QF Left (matchups 0, 1)
+  const qfLeft = document.createElement('div');
+  qfLeft.className = 'bracket-round qf';
+  qfLeft.innerHTML = '<div class="bracket-round-label">Cuartos</div>';
+  qfLeft.appendChild(renderMatchup(qf[0], 0, 0));
+  qfLeft.appendChild(renderMatchup(qf[1], 0, 1));
+  bracket.appendChild(qfLeft);
+
+  // SF Left (matchup 0)
+  const sfLeft = document.createElement('div');
+  sfLeft.className = 'bracket-round sf';
+  sfLeft.innerHTML = '<div class="bracket-round-label">Semifinal</div>';
+  sfLeft.appendChild(renderMatchup(sf[0], 1, 0));
+  bracket.appendChild(sfLeft);
+
+  // Final (center)
+  const finalCol = document.createElement('div');
+  finalCol.className = 'bracket-round final';
+  finalCol.innerHTML = '<div class="bracket-round-label">Final</div>';
+  finalCol.appendChild(renderMatchup(fin[0], 2, 0));
+  if (champion) {
+    const champ = document.createElement('div');
+    champ.className = 'bracket-champion';
+    champ.innerHTML = `<div class="bracket-champion-label">CAMPEON</div><div class="bracket-champion-team">${makeLogoEl(champion, false)}<span>${champion}</span></div>`;
+    finalCol.appendChild(champ);
+  }
+  bracket.appendChild(finalCol);
+
+  // SF Right (matchup 1)
+  const sfRight = document.createElement('div');
+  sfRight.className = 'bracket-round sf';
+  sfRight.innerHTML = '<div class="bracket-round-label">Semifinal</div>';
+  sfRight.appendChild(renderMatchup(sf[1], 1, 1));
+  bracket.appendChild(sfRight);
+
+  // QF Right (matchups 2, 3)
+  const qfRight = document.createElement('div');
+  qfRight.className = 'bracket-round qf';
+  qfRight.innerHTML = '<div class="bracket-round-label">Cuartos</div>';
+  qfRight.appendChild(renderMatchup(qf[2], 0, 2));
+  qfRight.appendChild(renderMatchup(qf[3], 0, 3));
+  bracket.appendChild(qfRight);
+
+  bwrap.appendChild(bracket);
+  wrap.appendChild(bwrap);
+  container.appendChild(wrap);
+}
+
+function exportPlayoffImage() {
+  const el = document.getElementById('playoff-capture');
+  if (!el) { showToast('No hay bracket para exportar'); return; }
+  const hidden = el.querySelectorAll('.playoffs-admin-only');
+  hidden.forEach(e => e.style.display = 'none');
+  // Replace score inputs with text
+  const inputs = el.querySelectorAll('.bracket-score-input');
+  const backups = [];
+  inputs.forEach(inp => {
+    const span = document.createElement('span');
+    span.className = 'bracket-score';
+    span.textContent = inp.value || '';
+    inp.style.display = 'none';
+    inp.parentNode.insertBefore(span, inp);
+    backups.push({ input: inp, span });
+  });
+
+  html2canvas(el, { backgroundColor: '#0a0a0f', scale: 2, useCORS: true }).then(canvas => {
+    hidden.forEach(e => e.style.display = '');
+    backups.forEach(({input, span}) => { input.style.display = ''; span.remove(); });
+
+    const pad = 40;
+    const final = document.createElement('canvas');
+    final.width = canvas.width + pad * 2;
+    final.height = canvas.height + pad * 2;
+    const ctx = final.getContext('2d');
+    ctx.fillStyle = '#0a0a0f';
+    ctx.fillRect(0, 0, final.width, final.height);
+    ctx.drawImage(canvas, pad, pad);
+    ctx.fillStyle = 'rgba(255,255,255,0.12)';
+    ctx.font = '24px sans-serif';
+    ctx.textAlign = 'right';
+    ctx.fillText('Liga Amistades', final.width - pad, final.height - 16);
+
+    const link = document.createElement('a');
+    link.download = 'playoffs_bracket.png';
+    link.href = final.toDataURL('image/png');
+    link.click();
+    showToast('✓ Bracket exportado');
+  }).catch(() => {
+    hidden.forEach(e => e.style.display = '');
+    backups.forEach(({input, span}) => { input.style.display = ''; span.remove(); });
+    showToast('⚠ Error al exportar');
+  });
+}
+
 // ─── FIREBASE (DISABLED - LOCAL MODE) ───────────────────────────────────────
 
 const firebaseConfig = {
@@ -3788,6 +4200,7 @@ function saveToStorage() {
     rosters: rosters,
     teams: TEAMS.map(t => ({ name: t.name })),
     horarios: horarios,
+    playoffs: playoffs,
   };
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
@@ -3836,6 +4249,10 @@ function loadFromStorage() {
     Object.keys(horarios).forEach(k => delete horarios[k]);
     Object.assign(horarios, data.horarios || {});
 
+    // Restore playoffs
+    Object.keys(playoffs).forEach(k => delete playoffs[k]);
+    Object.assign(playoffs, data.playoffs || {});
+
     return true;
   } catch(e) {
     console.error('Error loading from storage:', e);
@@ -3854,6 +4271,7 @@ function exportJSON() {
     rosters,
     teams: TEAMS.map(t => ({ name: t.name })),
     horarios: horarios,
+    playoffs: playoffs,
   };
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
@@ -3897,6 +4315,10 @@ function importJSON(e) {
       // Restore horarios
       Object.keys(horarios).forEach(k => delete horarios[k]);
       Object.assign(horarios, data.horarios || {});
+
+      // Restore playoffs
+      Object.keys(playoffs).forEach(k => delete playoffs[k]);
+      Object.assign(playoffs, data.playoffs || {});
 
       rebuildStandingsFromGames();
       saveToStorage();
@@ -3944,6 +4366,9 @@ window._applyFirebaseData = function(data) {
   // Restore horarios
   Object.keys(horarios).forEach(k => delete horarios[k]);
   Object.assign(horarios, data.horarios || {});
+  // Restore playoffs
+  Object.keys(playoffs).forEach(k => delete playoffs[k]);
+  Object.assign(playoffs, data.playoffs || {});
   rebuildStandingsFromGames();
   renderStandings();
   renderJornadas();
