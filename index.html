@@ -1026,8 +1026,6 @@ if (_viewParam === 'standings') {
   .view-standings-only #tab-horarios { display: none !important; }
 
   @media (max-width: 600px) {
-    #horario-display { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-    .horario-table { min-width: 600px; }
     .horario-table td.horario-team-row { padding: 0.5rem 0.6rem; font-size: 0.8rem; }
     .horario-team-row .team-logo,
     .horario-team-row .team-logo-sm { width: 26px !important; height: 26px !important; font-size: 0.5rem !important; }
@@ -3327,6 +3325,110 @@ function getSelectedHorarioJornada() {
   return sel ? parseInt(sel.value) || 1 : 1;
 }
 
+function buildHorarioTable(j, data, campoIndices, isAdmin, maxSlots) {
+  const numCols = campoIndices.length;
+  const table = document.createElement('table');
+  table.className = 'horario-table';
+
+  for (let si = 0; si < maxSlots; si++) {
+    if (si > 0) {
+      const spacer = document.createElement('tr');
+      spacer.innerHTML = `<td colspan="${numCols}" style="height:0.8rem;background:var(--bg);border:none;border-bottom:2px solid var(--border);"></td>`;
+      table.appendChild(spacer);
+    }
+    const hdrRow = document.createElement('tr');
+    campoIndices.forEach(ci => {
+      const campo = data.campos[ci];
+      const td = document.createElement('td');
+      td.className = 'horario-campo-header';
+      const slot = campo.slots[si];
+      if (!slot) { td.innerHTML = '&nbsp;'; }
+      else if (isAdmin) {
+        td.innerHTML = `${campo.name} &nbsp; HORA: <input class="horario-time-input horario-edit-controls" value="${slot.time}" onchange="updateHorarioSlot(${j},${ci},${si},'time',this.value)">`;
+      } else {
+        td.textContent = `${campo.name}   HORA: ${slot.time}`;
+      }
+      hdrRow.appendChild(td);
+    });
+    table.appendChild(hdrRow);
+
+    const labelRow = document.createElement('tr');
+    campoIndices.forEach(ci => {
+      const td = document.createElement('td');
+      td.className = 'horario-slot-label';
+      if (data.campos[ci].slots[si]) td.textContent = SLOT_LABELS[si] || `HORA ${si+1}`;
+      labelRow.appendChild(td);
+    });
+    table.appendChild(labelRow);
+
+    const vRow = document.createElement('tr');
+    campoIndices.forEach(ci => {
+      const campo = data.campos[ci];
+      const td = document.createElement('td');
+      td.className = 'horario-team-row';
+      const slot = campo.slots[si];
+      if (!slot) { td.innerHTML = '&nbsp;'; }
+      else if (isAdmin) {
+        td.innerHTML = buildTeamSelect(slot.visitor, j, ci, si, 'visitor', new Set(slot.home ? [slot.home] : []));
+      } else {
+        td.innerHTML = buildTeamDisplay(slot.visitor);
+      }
+      vRow.appendChild(td);
+    });
+    table.appendChild(vRow);
+
+    const hRow = document.createElement('tr');
+    campoIndices.forEach(ci => {
+      const campo = data.campos[ci];
+      const td = document.createElement('td');
+      td.className = 'horario-team-row';
+      const slot = campo.slots[si];
+      if (!slot) { td.innerHTML = '&nbsp;'; }
+      else if (isAdmin) {
+        td.innerHTML = buildTeamSelect(slot.home, j, ci, si, 'home', new Set(slot.visitor ? [slot.visitor] : []));
+      } else {
+        td.innerHTML = buildTeamDisplay(slot.home);
+      }
+      hRow.appendChild(td);
+    });
+    table.appendChild(hRow);
+
+    if (isAdmin) {
+      const actRow = document.createElement('tr');
+      actRow.className = 'horarios-admin-only';
+      campoIndices.forEach(ci => {
+        const campo = data.campos[ci];
+        const td = document.createElement('td');
+        td.className = 'horario-slot-actions';
+        if (campo.slots[si] && campo.slots.length > 1) {
+          td.innerHTML = `<button class="horario-admin-btn" onclick="removeSlotFromCampo(${j},${ci},${si})">- quitar hora</button>`;
+        }
+        actRow.appendChild(td);
+      });
+      table.appendChild(actRow);
+    }
+  }
+
+  if (isAdmin) {
+    const addRow = document.createElement('tr');
+    addRow.className = 'horarios-admin-only';
+    campoIndices.forEach(ci => {
+      const campo = data.campos[ci];
+      const td = document.createElement('td');
+      td.className = 'horario-slot-actions';
+      td.style.cssText = 'padding:0.3rem;text-align:center;';
+      let btns = '';
+      if (campo.slots.length < 3) btns += `<button class="horario-admin-btn" onclick="addSlotToCampo(${j},${ci})">+ agregar hora</button>`;
+      if (data.campos.length > 1) btns += `<br><button class="horario-admin-btn" style="color:#FA8484;border-color:#FA8484;margin-top:0.2rem;" onclick="removeCampo(${j},${ci})">&#x2715; quitar campo</button>`;
+      td.innerHTML = btns;
+      addRow.appendChild(td);
+    });
+    table.appendChild(addRow);
+  }
+
+  return table;
+}
+
 function renderHorario() {
   const container = document.getElementById('horario-display');
   if (!container) return;
@@ -3342,8 +3444,7 @@ function renderHorario() {
                   !document.documentElement.classList.contains('view-admin-locked');
   const numCampos = data.campos.length;
   const maxSlots = Math.max(...data.campos.map(c => c.slots.length));
-
-  // No global usedTeams — grayout is per-game (same slot only)
+  const isMobile = window.innerWidth <= 600;
 
   _horarioDropdownId = 0;
   container.innerHTML = '';
@@ -3351,7 +3452,7 @@ function renderHorario() {
   // Wrapper for export capture
   const wrap = document.createElement('div');
   wrap.id = 'horario-capture';
-  wrap.style.cssText = 'background:var(--bg);border-radius:8px;overflow:hidden;';
+  wrap.style.cssText = 'background:var(--bg);border-radius:8px;';
 
   // Title bar
   const titleBar = document.createElement('div');
@@ -3359,115 +3460,25 @@ function renderHorario() {
   titleBar.innerHTML = `<h2>JORNADA # ${j}</h2>`;
   wrap.appendChild(titleBar);
 
-  // Table — rows are shared across all campos so heights align
-  const table = document.createElement('table');
-  table.className = 'horario-table';
-
-  for (let si = 0; si < maxSlots; si++) {
-    // Spacer row between time slots
-    if (si > 0) {
-      const spacer = document.createElement('tr');
-      spacer.innerHTML = `<td colspan="${numCampos}" style="height:0.8rem;background:var(--bg);border:none;border-bottom:2px solid var(--border);"></td>`;
-      table.appendChild(spacer);
+  if (isMobile && numCampos > 2) {
+    // Split campos into chunks of 2 for mobile
+    const allIndices = Array.from({length: numCampos}, (_, i) => i);
+    for (let c = 0; c < allIndices.length; c += 2) {
+      const chunk = allIndices.slice(c, c + 2);
+      const table = buildHorarioTable(j, data, chunk, isAdmin, maxSlots);
+      wrap.appendChild(table);
+      // Add gap between blocks (except after last)
+      if (c + 2 < allIndices.length) {
+        const gap = document.createElement('div');
+        gap.style.cssText = 'height:1rem;background:var(--bg);';
+        wrap.appendChild(gap);
+      }
     }
-    // Row: campo headers with time
-    const hdrRow = document.createElement('tr');
-    data.campos.forEach((campo, ci) => {
-      const td = document.createElement('td');
-      td.className = 'horario-campo-header';
-      const slot = campo.slots[si];
-      if (!slot) { td.innerHTML = '&nbsp;'; }
-      else if (isAdmin) {
-        td.innerHTML = `${campo.name} &nbsp; HORA: <input class="horario-time-input horario-edit-controls" value="${slot.time}" onchange="updateHorarioSlot(${j},${ci},${si},'time',this.value)">`;
-      } else {
-        td.textContent = `${campo.name}   HORA: ${slot.time}`;
-      }
-      hdrRow.appendChild(td);
-    });
-    table.appendChild(hdrRow);
-
-    // Row: slot label (PRIMERA HORA, etc.)
-    const labelRow = document.createElement('tr');
-    data.campos.forEach((campo) => {
-      const td = document.createElement('td');
-      td.className = `horario-slot-label`;
-      if (campo.slots[si]) {
-        td.textContent = SLOT_LABELS[si] || `HORA ${si+1}`;
-      }
-      labelRow.appendChild(td);
-    });
-    table.appendChild(labelRow);
-
-    // Row: visitor team
-    const vRow = document.createElement('tr');
-    data.campos.forEach((campo, ci) => {
-      const td = document.createElement('td');
-      td.className = 'horario-team-row';
-      const slot = campo.slots[si];
-      if (!slot) { td.innerHTML = '&nbsp;'; }
-      else if (isAdmin) {
-        td.innerHTML = buildTeamSelect(slot.visitor, j, ci, si, 'visitor', new Set(slot.home ? [slot.home] : []));
-      } else {
-        td.innerHTML = buildTeamDisplay(slot.visitor);
-      }
-      vRow.appendChild(td);
-    });
-    table.appendChild(vRow);
-
-    // Row: home team
-    const hRow = document.createElement('tr');
-    data.campos.forEach((campo, ci) => {
-      const td = document.createElement('td');
-      td.className = 'horario-team-row';
-      const slot = campo.slots[si];
-      if (!slot) { td.innerHTML = '&nbsp;'; }
-      else if (isAdmin) {
-        td.innerHTML = buildTeamSelect(slot.home, j, ci, si, 'home', new Set(slot.visitor ? [slot.visitor] : []));
-      } else {
-        td.innerHTML = buildTeamDisplay(slot.home);
-      }
-      hRow.appendChild(td);
-    });
-    table.appendChild(hRow);
-
-    // Admin row: remove slot buttons
-    if (isAdmin) {
-      const actRow = document.createElement('tr');
-      actRow.className = 'horarios-admin-only';
-      data.campos.forEach((campo, ci) => {
-        const td = document.createElement('td');
-        td.className = 'horario-slot-actions';
-        if (campo.slots[si] && campo.slots.length > 1) {
-          td.innerHTML = `<button class="horario-admin-btn" onclick="removeSlotFromCampo(${j},${ci},${si})">- quitar hora</button>`;
-        }
-        actRow.appendChild(td);
-      });
-      table.appendChild(actRow);
-    }
+  } else {
+    // Desktop: single table with all campos
+    const allIndices = Array.from({length: numCampos}, (_, i) => i);
+    wrap.appendChild(buildHorarioTable(j, data, allIndices, isAdmin, maxSlots));
   }
-
-  // Admin row: add slot / remove campo
-  if (isAdmin) {
-    const addRow = document.createElement('tr');
-    addRow.className = 'horarios-admin-only';
-    data.campos.forEach((campo, ci) => {
-      const td = document.createElement('td');
-      td.className = 'horario-slot-actions';
-      td.style.cssText = 'padding:0.3rem;text-align:center;';
-      let btns = '';
-      if (campo.slots.length < 3) {
-        btns += `<button class="horario-admin-btn" onclick="addSlotToCampo(${j},${ci})">+ agregar hora</button>`;
-      }
-      if (numCampos > 1) {
-        btns += `<br><button class="horario-admin-btn" style="color:#FA8484;border-color:#FA8484;margin-top:0.2rem;" onclick="removeCampo(${j},${ci})">&#x2715; quitar campo</button>`;
-      }
-      td.innerHTML = btns;
-      addRow.appendChild(td);
-    });
-    table.appendChild(addRow);
-  }
-
-  wrap.appendChild(table);
 
   // Footer
   const footer = document.createElement('div');
