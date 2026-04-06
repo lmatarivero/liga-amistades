@@ -1787,7 +1787,7 @@ if (_viewParam === 'standings') {
   <!-- PLAYOFFS TAB -->
   <div class="tab-content" id="tab-playoffs">
     <div class="section-header">
-      <div class="section-title">Playoffs</div>
+      <div class="section-title" id="playoffs-title" contenteditable="false">Playoffs</div>
       <div class="controls">
         <button class="btn btn-accent playoffs-admin-only" onclick="seedPlayoffs()">Generar Bracket</button>
         <button class="btn btn-outline playoffs-admin-only" onclick="resetPlayoffs()" style="color:var(--red);border-color:var(--red);">Resetear</button>
@@ -2869,7 +2869,7 @@ function showTab(name, btn) {
   const map = { standings: 0, enter: 1, jornadas: 2, horarios: 3, playoffs: 4 };
   btns[map[name]].classList.add('active');
   if (name === 'horarios') { populateHorarioJornadaSelect(); renderHorario(); }
-  if (name === 'playoffs') renderPlayoffs();
+  if (name === 'playoffs') { initPlayoffsTitle(); renderPlayoffs(); }
 }
 
 // ─── TOAST ───────────────────────────────────────────────────────────────────
@@ -3829,6 +3829,26 @@ function exportHorarioImage() {
 // ─── PLAYOFFS BRACKET ───────────────────────────────────────────────────────
 
 const playoffs = {};
+
+function initPlayoffsTitle() {
+  const el = document.getElementById('playoffs-title');
+  if (!el) return;
+  const isAdmin = !document.documentElement.classList.contains('view-public') &&
+                  !document.documentElement.classList.contains('view-admin-locked');
+  el.textContent = playoffs.title || 'Playoffs';
+  if (isAdmin) {
+    el.contentEditable = 'true';
+    el.style.cursor = 'text';
+    el.style.borderBottom = '2px dashed var(--border)';
+    el.onblur = function() {
+      const newTitle = el.textContent.trim() || 'Playoffs';
+      el.textContent = newTitle;
+      playoffs.title = newTitle;
+      saveToStorage();
+      if (window.saveToFirebase) { const raw = localStorage.getItem(STORAGE_KEY); if (raw) window.saveToFirebase(JSON.parse(raw)); }
+    };
+  }
+}
 
 function seedPlayoffs() {
   const sorted = getSorted();
