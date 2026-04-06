@@ -1188,6 +1188,13 @@ if (_viewParam === 'standings') {
     height: 48px !important;
   }
 
+  .bracket-swap {
+    text-align: center;
+    padding: 0.15rem;
+    background: var(--surface2);
+    border-top: 1px solid var(--border);
+  }
+
   .view-public .playoffs-admin-only,
   .view-standings-only #tab-playoffs { display: none !important; }
 
@@ -3929,6 +3936,18 @@ function updatePlayoffScore(round, matchup, which, value) {
   renderPlayoffs();
 }
 
+function swapPlayoffTeams(round, idx) {
+  if (!playoffs.rounds) return;
+  const m = playoffs.rounds[round][idx];
+  // Swap teams, seeds, and scores
+  [m.team1, m.team2] = [m.team2, m.team1];
+  [m.seed1, m.seed2] = [m.seed2, m.seed1];
+  [m.score1, m.score2] = [m.score2, m.score1];
+  saveToStorage();
+  if (window.saveToFirebase) { const raw = localStorage.getItem(STORAGE_KEY); if (raw) window.saveToFirebase(JSON.parse(raw)); }
+  renderPlayoffs();
+}
+
 function refreshPlayoffSeeds() {
   if (!playoffs.seeded) { showToast('Primero genera el bracket'); return; }
   const sorted = getSorted();
@@ -4018,6 +4037,13 @@ function renderPlayoffs() {
       }
       card.appendChild(row);
     });
+    // Swap button (admin only, when both teams exist)
+    if (isAdmin && m.team1 && m.team2) {
+      const swapBtn = document.createElement('div');
+      swapBtn.className = 'bracket-swap playoffs-admin-only';
+      swapBtn.innerHTML = `<button class="horario-admin-btn" onclick="swapPlayoffTeams(${round},${idx})" title="Cambiar orden">&#8645;</button>`;
+      card.appendChild(swapBtn);
+    }
     return card;
   }
 
