@@ -1044,26 +1044,24 @@ if (_viewParam === 'standings') {
   .bracket-wrap {
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
+    padding: 1rem 0;
   }
 
   .bracket {
-    display: grid;
-    grid-template-columns: 1fr 1fr 1.2fr 1fr 1fr;
+    display: flex;
+    align-items: stretch;
+    min-width: 780px;
     gap: 0;
-    min-width: 800px;
-    padding: 1.5rem 0.5rem;
-    align-items: center;
   }
 
   .bracket-round {
     display: flex;
     flex-direction: column;
-    gap: 1.5rem;
-    padding: 0 0.4rem;
+    justify-content: space-around;
+    flex: 1;
+    padding: 0 0.3rem;
+    position: relative;
   }
-  .bracket-round.qf { gap: 2rem; }
-  .bracket-round.sf { gap: 4rem; padding-top: 2rem; }
-  .bracket-round.final { align-items: center; }
 
   .bracket-round-label {
     font-family: var(--font-mono);
@@ -1076,12 +1074,26 @@ if (_viewParam === 'standings') {
     margin-bottom: 0.5rem;
   }
 
+  .bracket-spacer { flex: 1; }
+
   .bracket-matchup {
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: 8px;
     overflow: hidden;
+    position: relative;
   }
+
+  /* Connector lines */
+  .bracket-matchup::after {
+    content: '';
+    position: absolute;
+    right: -0.6rem;
+    top: 50%;
+    width: 0.6rem;
+    border-top: 2px solid var(--border);
+  }
+  .bracket-round:last-child .bracket-matchup::after { display: none; }
 
   .bracket-team {
     display: flex;
@@ -1190,7 +1202,7 @@ if (_viewParam === 'standings') {
   .view-standings-only #tab-playoffs { display: none !important; }
 
   @media (max-width: 600px) {
-    .bracket { min-width: 700px; padding: 1rem 0.3rem; }
+    .bracket { min-width: 680px; }
     .bracket-team { padding: 0.5rem 0.5rem; font-size: 0.75rem; }
     .bracket-team-name { font-size: 0.75rem; }
     .bracket-team .team-logo,
@@ -3924,6 +3936,7 @@ function renderPlayoffs() {
 
   const wrap = document.createElement('div');
   wrap.id = 'playoff-capture';
+  wrap.style.cssText = 'background:var(--bg);padding:1rem 0;';
 
   const bwrap = document.createElement('div');
   bwrap.className = 'bracket-wrap';
@@ -3966,48 +3979,58 @@ function renderPlayoffs() {
     return card;
   }
 
-  // QF Left (matchups 0, 1)
-  const qfLeft = document.createElement('div');
-  qfLeft.className = 'bracket-round qf';
-  qfLeft.innerHTML = '<div class="bracket-round-label">Cuartos</div>';
-  qfLeft.appendChild(renderMatchup(qf[0], 0, 0));
-  qfLeft.appendChild(renderMatchup(qf[1], 0, 1));
-  bracket.appendChild(qfLeft);
+  // Round labels
+  const ROUND_NAMES = ['Cuartos de Final', 'Semifinales', 'Final', 'Campeon'];
 
-  // SF Left (matchup 0)
-  const sfLeft = document.createElement('div');
-  sfLeft.className = 'bracket-round sf';
-  sfLeft.innerHTML = '<div class="bracket-round-label">Semifinal</div>';
-  sfLeft.appendChild(renderMatchup(sf[0], 1, 0));
-  bracket.appendChild(sfLeft);
+  // Column 1: Quarterfinals (4 matchups)
+  const col1 = document.createElement('div');
+  col1.className = 'bracket-round';
+  col1.innerHTML = `<div class="bracket-round-label">${ROUND_NAMES[0]}</div>`;
+  col1.appendChild(renderMatchup(qf[0], 0, 0));
+  col1.appendChild(document.createElement('div')); // spacer
+  col1.lastChild.className = 'bracket-spacer';
+  col1.appendChild(renderMatchup(qf[1], 0, 1));
+  col1.appendChild(document.createElement('div'));
+  col1.lastChild.className = 'bracket-spacer';
+  col1.appendChild(renderMatchup(qf[2], 0, 2));
+  col1.appendChild(document.createElement('div'));
+  col1.lastChild.className = 'bracket-spacer';
+  col1.appendChild(renderMatchup(qf[3], 0, 3));
+  bracket.appendChild(col1);
 
-  // Final (center)
-  const finalCol = document.createElement('div');
-  finalCol.className = 'bracket-round final';
-  finalCol.innerHTML = '<div class="bracket-round-label">Final</div>';
-  finalCol.appendChild(renderMatchup(fin[0], 2, 0));
+  // Column 2: Semifinals (2 matchups)
+  const col2 = document.createElement('div');
+  col2.className = 'bracket-round';
+  col2.innerHTML = `<div class="bracket-round-label">${ROUND_NAMES[1]}</div>`;
+  col2.appendChild(renderMatchup(sf[0], 1, 0));
+  col2.appendChild(document.createElement('div'));
+  col2.lastChild.className = 'bracket-spacer';
+  col2.appendChild(renderMatchup(sf[1], 1, 1));
+  bracket.appendChild(col2);
+
+  // Column 3: Final (1 matchup)
+  const col3 = document.createElement('div');
+  col3.className = 'bracket-round';
+  col3.innerHTML = `<div class="bracket-round-label">${ROUND_NAMES[2]}</div>`;
+  col3.appendChild(renderMatchup(fin[0], 2, 0));
+  bracket.appendChild(col3);
+
+  // Column 4: Champion
+  const col4 = document.createElement('div');
+  col4.className = 'bracket-round';
+  col4.innerHTML = `<div class="bracket-round-label">${ROUND_NAMES[3]}</div>`;
   if (champion) {
     const champ = document.createElement('div');
     champ.className = 'bracket-champion';
-    champ.innerHTML = `<div class="bracket-champion-label">CAMPEON</div><div class="bracket-champion-team">${makeLogoEl(champion, false)}<span>${champion}</span></div>`;
-    finalCol.appendChild(champ);
+    champ.innerHTML = `<div class="bracket-champion-team">${makeLogoEl(champion, false)}<span>${champion}</span></div>`;
+    col4.appendChild(champ);
+  } else {
+    const tbd = document.createElement('div');
+    tbd.className = 'bracket-matchup';
+    tbd.innerHTML = '<div class="bracket-team"><span class="bracket-tbd">— Por definir —</span></div>';
+    col4.appendChild(tbd);
   }
-  bracket.appendChild(finalCol);
-
-  // SF Right (matchup 1)
-  const sfRight = document.createElement('div');
-  sfRight.className = 'bracket-round sf';
-  sfRight.innerHTML = '<div class="bracket-round-label">Semifinal</div>';
-  sfRight.appendChild(renderMatchup(sf[1], 1, 1));
-  bracket.appendChild(sfRight);
-
-  // QF Right (matchups 2, 3)
-  const qfRight = document.createElement('div');
-  qfRight.className = 'bracket-round qf';
-  qfRight.innerHTML = '<div class="bracket-round-label">Cuartos</div>';
-  qfRight.appendChild(renderMatchup(qf[2], 0, 2));
-  qfRight.appendChild(renderMatchup(qf[3], 0, 3));
-  bracket.appendChild(qfRight);
+  bracket.appendChild(col4);
 
   bwrap.appendChild(bracket);
   wrap.appendChild(bwrap);
