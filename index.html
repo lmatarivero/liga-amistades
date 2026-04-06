@@ -3850,6 +3850,16 @@ function initPlayoffsTitle() {
   }
 }
 
+function unflattenPlayoffRounds(p) {
+  // Convert { round0: [...], round1: [...], round2: [...] } back to array of arrays
+  if (p && p.rounds && !Array.isArray(p.rounds)) {
+    const arr = [];
+    Object.keys(p.rounds).sort().forEach(k => { arr.push(p.rounds[k]); });
+    p.rounds = arr;
+  }
+  return p;
+}
+
 function seedPlayoffs() {
   const sorted = getSorted();
   if (sorted.length < 8) { showToast('Se necesitan al menos 8 equipos en la clasificación'); return; }
@@ -4139,6 +4149,12 @@ window.saveToFirebase = async function(data) {
         fbData.config = { ...fbData.config, leagueLogo: null };
       }
     }
+    // Flatten playoffs.rounds (nested arrays not supported by Firestore)
+    if (fbData.playoffs && fbData.playoffs.rounds) {
+      const flatRounds = {};
+      fbData.playoffs.rounds.forEach((round, i) => { flatRounds['round' + i] = round; });
+      fbData.playoffs = { ...fbData.playoffs, rounds: flatRounds };
+    }
     await LIGA_DOC_REF.set(fbData);
   } catch(e) {
     console.error('Firebase save error:', e);
@@ -4281,7 +4297,7 @@ function loadFromStorage() {
 
     // Restore playoffs
     Object.keys(playoffs).forEach(k => delete playoffs[k]);
-    Object.assign(playoffs, data.playoffs || {});
+    Object.assign(playoffs, unflattenPlayoffRounds(data.playoffs || {}));
 
     return true;
   } catch(e) {
@@ -4398,7 +4414,7 @@ window._applyFirebaseData = function(data) {
   Object.assign(horarios, data.horarios || {});
   // Restore playoffs
   Object.keys(playoffs).forEach(k => delete playoffs[k]);
-  Object.assign(playoffs, data.playoffs || {});
+  Object.assign(playoffs, unflattenPlayoffRounds(data.playoffs || {}));
   rebuildStandingsFromGames();
   renderStandings();
   renderJornadas();
