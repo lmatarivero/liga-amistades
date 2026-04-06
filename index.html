@@ -1048,19 +1048,12 @@ if (_viewParam === 'standings') {
   }
 
   .bracket {
-    display: flex;
-    align-items: stretch;
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr 1fr;
+    grid-template-rows: repeat(8, auto);
+    gap: 0.4rem 0.5rem;
     min-width: 780px;
-    gap: 0;
-  }
-
-  .bracket-round {
-    display: flex;
-    flex-direction: column;
-    justify-content: space-around;
-    flex: 1;
-    padding: 0 0.3rem;
-    position: relative;
+    align-items: center;
   }
 
   .bracket-round-label {
@@ -1071,10 +1064,7 @@ if (_viewParam === 'standings') {
     text-transform: uppercase;
     letter-spacing: 0.12em;
     text-align: center;
-    margin-bottom: 0.5rem;
   }
-
-  .bracket-spacer { flex: 1; }
 
   .bracket-matchup {
     background: var(--surface);
@@ -3979,58 +3969,55 @@ function renderPlayoffs() {
     return card;
   }
 
-  // Round labels
-  const ROUND_NAMES = ['Cuartos de Final', 'Semifinales', 'Final', 'Campeon'];
+  // Grid layout: 4 columns x 8 rows
+  // QF matchups in rows: 1-2, 3-4, 5-6, 7-8 (col 1)
+  // SF matchups centered: rows 1-4, 5-8 (col 2)
+  // Final centered: rows 1-8 (col 3)
+  // Champion: rows 1-8 (col 4)
 
-  // Column 1: Quarterfinals (4 matchups)
-  const col1 = document.createElement('div');
-  col1.className = 'bracket-round';
-  col1.innerHTML = `<div class="bracket-round-label">${ROUND_NAMES[0]}</div>`;
-  col1.appendChild(renderMatchup(qf[0], 0, 0));
-  col1.appendChild(document.createElement('div')); // spacer
-  col1.lastChild.className = 'bracket-spacer';
-  col1.appendChild(renderMatchup(qf[1], 0, 1));
-  col1.appendChild(document.createElement('div'));
-  col1.lastChild.className = 'bracket-spacer';
-  col1.appendChild(renderMatchup(qf[2], 0, 2));
-  col1.appendChild(document.createElement('div'));
-  col1.lastChild.className = 'bracket-spacer';
-  col1.appendChild(renderMatchup(qf[3], 0, 3));
-  bracket.appendChild(col1);
-
-  // Column 2: Semifinals (2 matchups)
-  const col2 = document.createElement('div');
-  col2.className = 'bracket-round';
-  col2.innerHTML = `<div class="bracket-round-label">${ROUND_NAMES[1]}</div>`;
-  col2.appendChild(renderMatchup(sf[0], 1, 0));
-  col2.appendChild(document.createElement('div'));
-  col2.lastChild.className = 'bracket-spacer';
-  col2.appendChild(renderMatchup(sf[1], 1, 1));
-  bracket.appendChild(col2);
-
-  // Column 3: Final (1 matchup)
-  const col3 = document.createElement('div');
-  col3.className = 'bracket-round';
-  col3.innerHTML = `<div class="bracket-round-label">${ROUND_NAMES[2]}</div>`;
-  col3.appendChild(renderMatchup(fin[0], 2, 0));
-  bracket.appendChild(col3);
-
-  // Column 4: Champion
-  const col4 = document.createElement('div');
-  col4.className = 'bracket-round';
-  col4.innerHTML = `<div class="bracket-round-label">${ROUND_NAMES[3]}</div>`;
-  if (champion) {
-    const champ = document.createElement('div');
-    champ.className = 'bracket-champion';
-    champ.innerHTML = `<div class="bracket-champion-team">${makeLogoEl(champion, false)}<span>${champion}</span></div>`;
-    col4.appendChild(champ);
-  } else {
-    const tbd = document.createElement('div');
-    tbd.className = 'bracket-matchup';
-    tbd.innerHTML = '<div class="bracket-team"><span class="bracket-tbd">— Por definir —</span></div>';
-    col4.appendChild(tbd);
+  function placeInGrid(el, col, rowStart, rowEnd) {
+    el.style.gridColumn = col;
+    el.style.gridRow = `${rowStart} / ${rowEnd + 1}`;
   }
-  bracket.appendChild(col4);
+
+  // Column headers (row 1 used for labels via a top row approach)
+  // We'll use 9 rows: row 1 = labels, rows 2-9 = bracket content
+  bracket.style.gridTemplateRows = 'auto repeat(8, 1fr)';
+
+  // Round labels in row 1
+  const labels = ['Cuartos de Final', 'Semifinales', 'Final', 'Campeon'];
+  labels.forEach((lbl, i) => {
+    const el = document.createElement('div');
+    el.className = 'bracket-round-label';
+    el.textContent = lbl;
+    el.style.gridColumn = i + 1;
+    el.style.gridRow = '1';
+    bracket.appendChild(el);
+  });
+
+  // QF matchups: col 1, each spans 2 rows
+  const qfEl0 = renderMatchup(qf[0], 0, 0); placeInGrid(qfEl0, 1, 2, 3); bracket.appendChild(qfEl0);
+  const qfEl1 = renderMatchup(qf[1], 0, 1); placeInGrid(qfEl1, 1, 4, 5); bracket.appendChild(qfEl1);
+  const qfEl2 = renderMatchup(qf[2], 0, 2); placeInGrid(qfEl2, 1, 6, 7); bracket.appendChild(qfEl2);
+  const qfEl3 = renderMatchup(qf[3], 0, 3); placeInGrid(qfEl3, 1, 8, 9); bracket.appendChild(qfEl3);
+
+  // SF matchups: col 2, each spans 4 rows (centered between 2 QF matchups)
+  const sfEl0 = renderMatchup(sf[0], 1, 0); placeInGrid(sfEl0, 2, 2, 5); bracket.appendChild(sfEl0);
+  const sfEl1 = renderMatchup(sf[1], 1, 1); placeInGrid(sfEl1, 2, 6, 9); bracket.appendChild(sfEl1);
+
+  // Final: col 3, spans all 8 rows (centered between 2 SF matchups)
+  const finEl = renderMatchup(fin[0], 2, 0); placeInGrid(finEl, 3, 2, 9); bracket.appendChild(finEl);
+
+  // Champion: col 4, spans all 8 rows
+  const champEl = document.createElement('div');
+  champEl.className = 'bracket-champion';
+  placeInGrid(champEl, 4, 2, 9);
+  if (champion) {
+    champEl.innerHTML = `<div class="bracket-champion-label">CAMPEON</div><div class="bracket-champion-team">${makeLogoEl(champion, false)}<span>${champion}</span></div>`;
+  } else {
+    champEl.innerHTML = '<div class="bracket-matchup"><div class="bracket-team"><span class="bracket-tbd">— Por definir —</span></div></div>';
+  }
+  bracket.appendChild(champEl);
 
   bwrap.appendChild(bracket);
   wrap.appendChild(bwrap);
