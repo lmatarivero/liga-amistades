@@ -1790,6 +1790,7 @@ if (_viewParam === 'standings') {
       <div class="section-title" id="playoffs-title" contenteditable="false">Playoffs</div>
       <div class="controls">
         <button class="btn btn-accent playoffs-admin-only" onclick="seedPlayoffs()">Generar Bracket</button>
+        <button class="btn btn-outline playoffs-admin-only" onclick="refreshPlayoffSeeds()">&#8635; Actualizar Bracket</button>
         <button class="btn btn-outline playoffs-admin-only" onclick="resetPlayoffs()" style="color:var(--red);border-color:var(--red);">Resetear</button>
         <button class="btn btn-outline" onclick="exportPlayoffImage()">&#11015; Exportar imagen</button>
       </div>
@@ -3926,6 +3927,27 @@ function updatePlayoffScore(round, matchup, which, value) {
   saveToStorage();
   if (window.saveToFirebase) { const raw = localStorage.getItem(STORAGE_KEY); if (raw) window.saveToFirebase(JSON.parse(raw)); }
   renderPlayoffs();
+}
+
+function refreshPlayoffSeeds() {
+  if (!playoffs.seeded) { showToast('Primero genera el bracket'); return; }
+  const sorted = getSorted();
+  if (sorted.length < 8) { showToast('Se necesitan al menos 8 equipos'); return; }
+  if (!confirm('¿Actualizar los equipos del bracket con la clasificación actual? Se mantendrán los marcadores existentes.')) return;
+
+  const top8 = sorted.slice(0, 8);
+  const qf = playoffs.rounds[0];
+  // Update QF seeds: 1v8, 4v5, 2v7, 3v6
+  const seedings = [[0,7],[3,4],[1,6],[2,5]];
+  seedings.forEach(([s1, s2], i) => {
+    qf[i].seed1 = s1 + 1; qf[i].team1 = top8[s1].name;
+    qf[i].seed2 = s2 + 1; qf[i].team2 = top8[s2].name;
+  });
+  advanceBracket();
+  saveToStorage();
+  if (window.saveToFirebase) { const raw = localStorage.getItem(STORAGE_KEY); if (raw) window.saveToFirebase(JSON.parse(raw)); }
+  renderPlayoffs();
+  showToast('✓ Bracket actualizado con clasificación actual');
 }
 
 function resetPlayoffs() {
