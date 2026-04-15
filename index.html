@@ -4476,6 +4476,16 @@ window._applyFirebaseData = function(data) {
 
 // ─── TEAM FICHA GENERATOR ────────────────────────────────────────────────────
 
+// Ficha cache: { teamName: { hash, dataUrl } }
+const _fichaCache = {};
+
+function _fichaHash(teamName) {
+  const style = TEAM_STYLES[teamName] || {};
+  const logo = teamLogos[teamName] || '';
+  const roster = rosters[teamName] || [];
+  return JSON.stringify({ style, logo, roster });
+}
+
 // Generate ficha by team name (called from standings table click)
 async function generateTeamFichaByName(teamName) {
   const team = TEAMS.find(t => t.name === teamName);
@@ -4490,9 +4500,19 @@ async function generateTeamFichaByName(teamName) {
     return;
   }
 
+  // Check cache — reuse if roster/style/logo haven't changed
+  const hash = _fichaHash(teamName);
+  if (_fichaCache[teamName] && _fichaCache[teamName].hash === hash) {
+    const modal = document.getElementById('ficha-modal');
+    const img = document.getElementById('ficha-modal-img');
+    img.src = _fichaCache[teamName].dataUrl;
+    modal.classList.add('show');
+    return;
+  }
+
   try {
     showToast('⏳ Generando ficha...');
-    
+
     // Sort players by number (ascending)
     const sortedPlayers = [...roster].sort((a, b) => {
       const numA = parseInt(a.number) || 999;
@@ -4502,13 +4522,16 @@ async function generateTeamFichaByName(teamName) {
 
     // Generate the ficha using the same canvas code
     const fichaData = await generateFichaCanvas(teamName, teamStyle, teamLogo, sortedPlayers);
-    
+
+    // Cache it
+    _fichaCache[teamName] = { hash, dataUrl: fichaData.dataUrl };
+
     // Show in modal
     const modal = document.getElementById('ficha-modal');
     const img = document.getElementById('ficha-modal-img');
     img.src = fichaData.dataUrl;
     modal.classList.add('show');
-    
+
     showToast('✓ Ficha generada');
   } catch (error) {
     console.error('Error generating ficha:', error);
