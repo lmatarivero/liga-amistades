@@ -4295,6 +4295,7 @@ function saveToStorage() {
     teams: TEAMS.map(t => ({ name: t.name })),
     horarios: horarios,
     playoffs: playoffs,
+    teamFichas: teamFichas,
   };
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
@@ -4347,6 +4348,10 @@ function loadFromStorage() {
     Object.keys(playoffs).forEach(k => delete playoffs[k]);
     Object.assign(playoffs, unflattenPlayoffRounds(data.playoffs || {}));
 
+    // Restore teamFichas
+    Object.keys(teamFichas).forEach(k => delete teamFichas[k]);
+    Object.assign(teamFichas, data.teamFichas || {});
+
     return true;
   } catch(e) {
     console.error('Error loading from storage:', e);
@@ -4366,6 +4371,7 @@ function exportJSON() {
     teams: TEAMS.map(t => ({ name: t.name })),
     horarios: horarios,
     playoffs: playoffs,
+    teamFichas: teamFichas,
   };
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
@@ -4412,7 +4418,11 @@ function importJSON(e) {
 
       // Restore playoffs
       Object.keys(playoffs).forEach(k => delete playoffs[k]);
-      Object.assign(playoffs, data.playoffs || {});
+      Object.assign(playoffs, unflattenPlayoffRounds(data.playoffs || {}));
+
+      // Restore teamFichas
+      Object.keys(teamFichas).forEach(k => delete teamFichas[k]);
+      Object.assign(teamFichas, data.teamFichas || {});
 
       rebuildStandingsFromGames();
       saveToStorage();
@@ -4463,6 +4473,9 @@ window._applyFirebaseData = function(data) {
   // Restore playoffs
   Object.keys(playoffs).forEach(k => delete playoffs[k]);
   Object.assign(playoffs, unflattenPlayoffRounds(data.playoffs || {}));
+  // Restore teamFichas
+  Object.keys(teamFichas).forEach(k => delete teamFichas[k]);
+  Object.assign(teamFichas, data.teamFichas || {});
   rebuildStandingsFromGames();
   renderStandings();
   renderJornadas();
@@ -4476,14 +4489,18 @@ window._applyFirebaseData = function(data) {
 
 // ─── TEAM FICHA GENERATOR ────────────────────────────────────────────────────
 
-// Ficha cache: { teamName: { hash, dataUrl } }
-const _fichaCache = {};
+// Ficha cache: { teamName: { hash, url } } — persisted via teamFichas
+const teamFichas = {};
 
 function _fichaHash(teamName) {
   const style = TEAM_STYLES[teamName] || {};
   const logo = teamLogos[teamName] || '';
   const roster = rosters[teamName] || [];
-  return JSON.stringify({ style, logo, roster });
+  // Simple hash: stringify the data that affects the ficha image
+  let s = JSON.stringify({ style, logo, r: roster.map(p => p.name + '|' + p.number + '|' + (p.photo || '')) });
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = ((h << 5) - h + s.charCodeAt(i)) | 0;
+  return '' + h;
 }
 
 // Generate ficha by team name (called from standings table click)
@@ -4500,12 +4517,12 @@ async function generateTeamFichaByName(teamName) {
     return;
   }
 
-  // Check cache — reuse if roster/style/logo haven't changed
+  // Check persisted cache — reuse if roster/style/logo haven't changed
   const hash = _fichaHash(teamName);
-  if (_fichaCache[teamName] && _fichaCache[teamName].hash === hash) {
+  if (teamFichas[teamName] && teamFichas[teamName].hash === hash && teamFichas[teamName].url) {
     const modal = document.getElementById('ficha-modal');
     const img = document.getElementById('ficha-modal-img');
-    img.src = _fichaCache[teamName].dataUrl;
+    img.src = teamFichas[teamName].url;
     modal.classList.add('show');
     return;
   }
@@ -4513,23 +4530,32 @@ async function generateTeamFichaByName(teamName) {
   try {
     showToast('⏳ Generando ficha...');
 
-    // Sort players by number (ascending)
     const sortedPlayers = [...roster].sort((a, b) => {
       const numA = parseInt(a.number) || 999;
       const numB = parseInt(b.number) || 999;
       return numA - numB;
     });
 
-    // Generate the ficha using the same canvas code
     const fichaData = await generateFichaCanvas(teamName, teamStyle, teamLogo, sortedPlayers);
 
-    // Cache it
-    _fichaCache[teamName] = { hash, dataUrl: fichaData.dataUrl };
+    // Upload to Cloudinary for persistent hosting
+    let url = fichaData.dataUrl;
+    try {
+      const blob = await (await fetch(fichaData.dataUrl)).blob();
+      const file = new File([blob], `ficha_${teamName.replace(/\s+/g, '_')}.png`, { type: 'image/png' });
+      url = await uploadToCloudinary(file, 'fichas');
+    } catch (uploadErr) {
+      console.warn('Cloudinary upload failed, using local dataUrl:', uploadErr);
+    }
 
-    // Show in modal
+    // Cache with hash + URL
+    teamFichas[teamName] = { hash, url };
+    saveToStorage();
+    if (window.saveToFirebase) { const raw = localStorage.getItem(STORAGE_KEY); if (raw) window.saveToFirebase(JSON.parse(raw)); }
+
     const modal = document.getElementById('ficha-modal');
     const img = document.getElementById('ficha-modal-img');
-    img.src = fichaData.dataUrl;
+    img.src = url;
     modal.classList.add('show');
 
     showToast('✓ Ficha generada');
