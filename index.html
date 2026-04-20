@@ -2384,9 +2384,6 @@ function h2hWinPct(team, opponents) {
 }
 
 function getSorted() {
-  const maxJornada = 11;
-  const seasonComplete = games.length > 0 && Math.max(...games.map(g => g.jornada)) >= maxJornada;
-
   // Sort by PTS first, then apply tiebreakers within tied groups
   const byPts = [...TEAMS].sort((a, b) => calcPTS(b) - calcPTS(a));
 
@@ -2403,12 +2400,10 @@ function getSorted() {
     } else {
       const opponentNames = tiedGroup.map(t => t.name);
       tiedGroup.sort((a, b) => {
-        // 1. Head-to-head (only when season complete)
-        if (seasonComplete) {
-          const h2hDiff = h2hWinPct(b, opponentNames.filter(n => n !== b.name))
-                        - h2hWinPct(a, opponentNames.filter(n => n !== a.name));
-          if (Math.abs(h2hDiff) > 0.0001) return h2hDiff;
-        }
+        // 1. Head-to-head (always, whenever tied teams have played each other)
+        const h2hDiff = h2hWinPct(b, opponentNames.filter(n => n !== b.name))
+                      - h2hWinPct(a, opponentNames.filter(n => n !== a.name));
+        if (Math.abs(h2hDiff) > 0.0001) return h2hDiff;
         // 2. PCT
         const pctDiff = calcPCT(b) - calcPCT(a);
         if (Math.abs(pctDiff) > 0.0001) return pctDiff;
