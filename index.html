@@ -2308,46 +2308,11 @@ const TEAMS = [
   { name: "Bufalos", gp: 0, w: 0, l: 0, t: 0, rs: 0, ra: 0 },
 ]
 
-const games = [
-  { jornada: 1, t1: "RL", s1: 10, s2: 10, t2: "Marlins" },
-  { jornada: 1, t1: "Masacre", s1: 10, s2: 11, t2: "Angelinos" },
-  { jornada: 1, t1: "Dream Team", s1: 29, s2: 17, t2: "Bufalos" },
-  { jornada: 1, t1: "Dream Team", s1: 12, s2: 8, t2: "Poder Latino" },
-  { jornada: 1, t1: "Fenix", s1: 18, s2: 1, t2: "Beer Ballers" },
-  { jornada: 1, t1: "Sluggers", s1: 7, s2: 12, t2: "Miami Mold" },
-  { jornada: 1, t1: "Royals", s1: 21, s2: 4, t2: "Poder Latino" },
-  { jornada: 1, t1: "RL", s1: 13, s2: 4, t2: "Bufalos" },
-  { jornada: 2, t1: "Beer Ballers", s1: 13, s2: 13, t2: "Dream Team" },
-  { jornada: 2, t1: "Fenix", s1: 16, s2: 0, t2: "Sluggers" },
-  { jornada: 2, t1: "Royals", s1: 17, s2: 1, t2: "Sluggers" },
-  { jornada: 2, t1: "Miami Mold", s1: 0, s2: 12, t2: "RL" },
-  { jornada: 2, t1: "Marlins", s1: 17, s2: 11, t2: "Angelinos" },
-  { jornada: 2, t1: "Bufalos", s1: 8, s2: 2, t2: "Poder Latino" },
-  { jornada: 3, t1: "Fenix", s1: 5, s2: 15, t2: "Marlins" },
-  { jornada: 3, t1: "Masacre", s1: 2, s2: 0, t2: "Royals" },
-  { jornada: 3, t1: "Royals", s1: 20, s2: 6, t2: "Beer Ballers" },
-  { jornada: 3, t1: "Dream Team", s1: 17, s2: 1, t2: "Sluggers" },
-  { jornada: 3, t1: "Miami Mold", s1: 20, s2: 5, t2: "Angelinos" },
-  { jornada: 3, t1: "RL", s1: 13, s2: 8, t2: "Poder Latino" },
-  { jornada: 3, t1: "Bufalos", s1: 22, s2: 7, t2: "Beer Ballers" },
-  { jornada: 3, t1: "Fenix", s1: 20, s2: 9, t2: "Masacre" },
-  { jornada: 4, t1: "Marlins", s1: 22, s2: 1, t2: "Sluggers" },
-  { jornada: 4, t1: "Poder Latino", s1: 9, s2: 2, t2: "Beer Ballers" },
-  { jornada: 4, t1: "Beer Ballers", s1: 4, s2: 13, t2: "RL" },
-  { jornada: 4, t1: "Angelinos", s1: 9, s2: 14, t2: "Fenix" },
-  { jornada: 4, t1: "Bufalos", s1: 21, s2: 15, t2: "Sluggers" },
-  { jornada: 4, t1: "RL", s1: 10, s2: 6, t2: "Royals" },
-  { jornada: 4, t1: "Fenix", s1: 8, s2: 6, t2: "Miami Mold" },
-  { jornada: 4, t1: "Dream Team", s1: 11, s2: 12, t2: "Masacre" },
-  { jornada: 5, t1: "Beer Ballers", s1: 8, s2: 8, t2: "Sluggers" },
-  { jornada: 5, t1: "Miami Mold", s1: 8, s2: 11, t2: "Royals" },
-  { jornada: 5, t1: "Poder Latino", s1: 7, s2: 8, t2: "Masacre" },
-  { jornada: 5, t1: "Bufalos", s1: 9, s2: 15, t2: "Angelinos" },
-  { jornada: 5, t1: "Sluggers", s1: 2, s2: 17, t2: "Poder Latino" },
-  { jornada: 5, t1: "Masacre", s1: 10, s2: 13, t2: "Bufalos" },
-  { jornada: 5, t1: "Dream Team", s1: 11, s2: 12, t2: "Marlins" },
-  { jornada: 5, t1: "Beer Ballers", s1: 12, s2: 12, t2: "Miami Mold" },
-]
+// Source of truth for games is Firebase (with localStorage as backup).
+// Do NOT hardcode game data here — a stale array can overwrite Firebase if a save
+// fires before Firebase finishes loading. Starts empty; populated by loadFromStorage()
+// then synced from Firebase via _applyFirebaseData().
+const games = []
 
 let showGB = true;
 let pendingGame = null;
@@ -4175,6 +4140,14 @@ try {
 
 window.saveToFirebase = async function(data) {
   if (!LIGA_DOC_REF) return;
+  // GUARD: Don't allow writes until Firebase has finished initial load.
+  // This prevents the race condition where saves during page-load could
+  // overwrite Firebase with the local in-memory state (which is stale before
+  // _applyFirebaseData has run). _fbSyncReady is set true at the end of initData().
+  if (!_fbSyncReady) {
+    console.warn('Firebase save skipped: sync not ready yet');
+    return;
+  }
   try {
     // Save URL logos always; save base64 logos only if < 100KB
     const fbData = { ...data };
@@ -4198,7 +4171,22 @@ window.saveToFirebase = async function(data) {
       fbData.playoffs.rounds.forEach((round, i) => { flatRounds['round' + i] = round; });
       fbData.playoffs = { ...fbData.playoffs, rounds: flatRounds };
     }
-    await LIGA_DOC_REF.set(fbData);
+
+    // ROLLING BACKUP: before overwriting liga/data, copy current state to
+    // liga/data_previous so we always have a 1-step undo available.
+    // Requires Firestore rules to permit writes on liga/data_previous.
+    try {
+      const PREV_REF = db.collection('liga').doc('data_previous');
+      const currentSnap = await LIGA_DOC_REF.get();
+      const batch = db.batch();
+      if (currentSnap.exists) batch.set(PREV_REF, currentSnap.data());
+      batch.set(LIGA_DOC_REF, fbData);
+      await batch.commit();
+    } catch (backupErr) {
+      // If backup fails (e.g. rules not deployed yet), fall back to plain write
+      console.warn('Rolling backup unavailable, writing without backup:', backupErr.message);
+      await LIGA_DOC_REF.set(fbData);
+    }
   } catch(e) {
     console.error('Firebase save error:', e);
   }
@@ -4235,6 +4223,27 @@ async function uploadToCloudinary(file, folder) {
   const data = await res.json();
   return data.secure_url;
 }
+
+// ─── EMERGENCY RESTORE FROM FIREBASE BACKUP ──────────────────────────────────
+// Call from DevTools console: window.restorePreviousFromFirebase()
+// Reads liga/data_previous and applies it (does NOT auto-save back — you must
+// confirm by re-saving). Useful for one-step undo if data is corrupted.
+window.restorePreviousFromFirebase = async function() {
+  if (!db) { console.error('Firebase not available'); return; }
+  try {
+    const snap = await db.collection('liga').doc('data_previous').get();
+    if (!snap.exists) { console.warn('No previous backup found in Firebase'); return; }
+    const prev = snap.data();
+    const maxJ = prev.games ? Math.max(...prev.games.map(g => g.jornada)) : 0;
+    console.log('Previous state:', { savedAt: prev.savedAt, games: prev.games?.length, maxJornada: maxJ });
+    if (!confirm(`Restaurar estado previo? (${prev.games?.length} juegos, J${maxJ}, guardado ${prev.savedAt})`)) return;
+    window._applyFirebaseData(prev);
+    saveToStorage();
+    showToast('✓ Estado previo restaurado. Refresca cuando estés listo para guardar.');
+  } catch (e) {
+    console.error('Restore failed:', e);
+  }
+};
 
 // ─── THEME ───────────────────────────────────────────────────────────────────
 
