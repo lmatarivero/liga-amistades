@@ -1,0 +1,6 @@
+# Local Cloudflare/wrangler state and deps
+node_modules/
+.wrangler/
+
+# Local editor / Claude Code settings
+.claude/

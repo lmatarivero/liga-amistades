@@ -19,8 +19,6 @@ if (_viewParam === 'standings') {
 <title>Liga Amistades — CLASIFICACION</title>
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,800&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
 <style>
   :root {
     --bg: #0a0a0f;
@@ -4110,46 +4108,29 @@ function exportPlayoffImage() {
 
 // ─── FIREBASE (DISABLED - LOCAL MODE) ───────────────────────────────────────
 
-const firebaseConfig = {
-  apiKey: "AIzaSyASErflGG8MNpsbafRKNkjjeR-Sf40YRC4",
-  authDomain: "liga-amistades.firebaseapp.com",
-  projectId: "liga-amistades",
-  storageBucket: "liga-amistades.firebasestorage.app",
-  messagingSenderId: "784097973811",
-  appId: "1:784097973811:web:d1c4d474a4307a953d7546"
-};
+// ─── CLOUDFLARE KV BACKEND ────────────────────────────────────────────────────
+// Data lives in Cloudflare Workers KV, exposed via the Pages Function at /api/data.
+//   GET  /api/data          → latest league JSON (or null)
+//   GET  /api/data?prev=1   → previous snapshot (1-step undo)
+//   POST /api/data          → save JSON; server copies current → previous first.
+// The old Firebase interface names (saveToFirebase / loadFromFirebase /
+// _applyFirebaseData / restorePreviousFromFirebase) are preserved so the ~20
+// call sites and initData() stay unchanged.
 
-let db = null;
-let LIGA_DOC_REF = null;
+const API_URL = '/api/data';
 let _fbSyncReady = false;
-
-try {
-  firebase.initializeApp(firebaseConfig);
-  db = firebase.firestore();
-  LIGA_DOC_REF = db.collection('liga').doc('data');
-
-  // Real-time sync
-  LIGA_DOC_REF.onSnapshot((snap) => {
-    if (snap.exists && _fbSyncReady) {
-      window._applyFirebaseData(snap.data());
-    }
-  });
-} catch(e) {
-  console.warn('Firebase init error:', e);
-}
+let _lastSyncedAt = null;   // savedAt of the most recent data we applied or wrote
 
 window.saveToFirebase = async function(data) {
-  if (!LIGA_DOC_REF) return;
-  // GUARD: Don't allow writes until Firebase has finished initial load.
-  // This prevents the race condition where saves during page-load could
-  // overwrite Firebase with the local in-memory state (which is stale before
-  // _applyFirebaseData has run). _fbSyncReady is set true at the end of initData().
+  // GUARD: Don't allow writes until initial load has finished, so a save during
+  // page-load can't overwrite the cloud with stale in-memory state.
+  // _fbSyncReady is set true at the end of initData().
   if (!_fbSyncReady) {
-    console.warn('Firebase save skipped: sync not ready yet');
+    console.warn('Cloud save skipped: sync not ready yet');
     return;
   }
   try {
-    // Save URL logos always; save base64 logos only if < 100KB
+    // Save URL logos always; save base64 logos only if < 100KB (keep payload small)
     const fbData = { ...data };
     const cleanLogos = {};
     Object.keys(fbData.teamLogos || {}).forEach(k => {
@@ -4165,43 +4146,53 @@ window.saveToFirebase = async function(data) {
         fbData.config = { ...fbData.config, leagueLogo: null };
       }
     }
-    // Flatten playoffs.rounds (nested arrays not supported by Firestore)
-    if (fbData.playoffs && fbData.playoffs.rounds) {
-      const flatRounds = {};
-      fbData.playoffs.rounds.forEach((round, i) => { flatRounds['round' + i] = round; });
-      fbData.playoffs = { ...fbData.playoffs, rounds: flatRounds };
-    }
-
-    // ROLLING BACKUP: before overwriting liga/data, copy current state to
-    // liga/data_previous so we always have a 1-step undo available.
-    // Requires Firestore rules to permit writes on liga/data_previous.
-    try {
-      const PREV_REF = db.collection('liga').doc('data_previous');
-      const currentSnap = await LIGA_DOC_REF.get();
-      const batch = db.batch();
-      if (currentSnap.exists) batch.set(PREV_REF, currentSnap.data());
-      batch.set(LIGA_DOC_REF, fbData);
-      await batch.commit();
-    } catch (backupErr) {
-      // If backup fails (e.g. rules not deployed yet), fall back to plain write
-      console.warn('Rolling backup unavailable, writing without backup:', backupErr.message);
-      await LIGA_DOC_REF.set(fbData);
-    }
+    // NOTE: no playoff flattening needed — KV stores raw JSON (nested arrays OK).
+    // The rolling 1-step backup (data → data_previous) is handled server-side.
+    const res = await fetch(API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(fbData),
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    _lastSyncedAt = fbData.savedAt || _lastSyncedAt;
   } catch(e) {
-    console.error('Firebase save error:', e);
+    console.error('Cloud save error:', e);
   }
 };
 
 window.loadFromFirebase = async function() {
-  if (!LIGA_DOC_REF) return null;
   try {
-    const snap = await LIGA_DOC_REF.get();
-    return snap.exists ? snap.data() : null;
+    const res = await fetch(API_URL, { cache: 'no-store' });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return (data && data.version === 1) ? data : null;
   } catch(e) {
-    console.error('Firebase load error:', e);
+    console.error('Cloud load error:', e);
     return null;
   }
 };
+
+// Near-real-time sync: poll every 20s and apply remote data only when it is
+// strictly newer than what we last applied/saved. Replaces Firestore onSnapshot
+// and avoids clobbering an in-progress local edit. _lastSyncedAt is seeded at the
+// end of initData() so an older cloud copy can never overwrite newer local data.
+async function _pollCloud() {
+  if (!_fbSyncReady) return;
+  try {
+    const res = await fetch(API_URL, { cache: 'no-store' });
+    if (!res.ok) return;
+    const data = await res.json();
+    if (!data || data.version !== 1) return;
+    const remote = data.savedAt ? new Date(data.savedAt) : null;
+    const seen = _lastSyncedAt ? new Date(_lastSyncedAt) : null;
+    if (remote && (!seen || remote > seen)) {
+      window._applyFirebaseData(data);
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch(e) {}
+      _lastSyncedAt = data.savedAt;
+    }
+  } catch(e) { /* transient network error — retry next tick */ }
+}
+setInterval(_pollCloud, 20000);
 
 // ─── CLOUDINARY ──────────────────────────────────────────────────────────────
 
@@ -4224,16 +4215,15 @@ async function uploadToCloudinary(file, folder) {
   return data.secure_url;
 }
 
-// ─── EMERGENCY RESTORE FROM FIREBASE BACKUP ──────────────────────────────────
+// ─── EMERGENCY RESTORE FROM CLOUD BACKUP ─────────────────────────────────────
 // Call from DevTools console: window.restorePreviousFromFirebase()
-// Reads liga/data_previous and applies it (does NOT auto-save back — you must
-// confirm by re-saving). Useful for one-step undo if data is corrupted.
+// Reads the previous snapshot (/api/data?prev=1) and applies it (does NOT
+// auto-save back — you must confirm by re-saving). One-step undo if data is bad.
 window.restorePreviousFromFirebase = async function() {
-  if (!db) { console.error('Firebase not available'); return; }
   try {
-    const snap = await db.collection('liga').doc('data_previous').get();
-    if (!snap.exists) { console.warn('No previous backup found in Firebase'); return; }
-    const prev = snap.data();
+    const res = await fetch(API_URL + '?prev=1', { cache: 'no-store' });
+    const prev = res.ok ? await res.json() : null;
+    if (!prev || prev.version !== 1) { console.warn('No previous backup found'); return; }
     const maxJ = prev.games ? Math.max(...prev.games.map(g => g.jornada)) : 0;
     console.log('Previous state:', { savedAt: prev.savedAt, games: prev.games?.length, maxJornada: maxJ });
     if (!confirm(`Restaurar estado previo? (${prev.games?.length} juegos, J${maxJ}, guardado ${prev.savedAt})`)) return;
@@ -4872,6 +4862,9 @@ async function initData() {
     }
   }
   _fbSyncReady = true;
+  // Seed the sync watermark from whatever we ended up with locally, so the
+  // 20s poller only ever applies STRICTLY newer remote data.
+  try { const raw = localStorage.getItem(STORAGE_KEY); _lastSyncedAt = raw ? JSON.parse(raw).savedAt : null; } catch(e) {}
   initTheme();
 }
 
