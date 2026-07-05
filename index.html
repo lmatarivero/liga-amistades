@@ -4958,17 +4958,26 @@ async function initData() {
   if (window.loadFromFirebase) {
     const fbData = await window.loadFromFirebase();
     if (fbData) {
-      // Only apply Firebase data if it's newer than what we have locally
       const localRaw = localStorage.getItem(STORAGE_KEY);
-      let localDate = null;
-      try { localDate = localRaw ? new Date(JSON.parse(localRaw).savedAt) : null; } catch(e) {}
+      let localParsed = null, localDate = null;
+      try {
+        localParsed = localRaw ? JSON.parse(localRaw) : null;
+        localDate = localParsed && localParsed.savedAt ? new Date(localParsed.savedAt) : null;
+      } catch(e) {}
       const fbDate = fbData.savedAt ? new Date(fbData.savedAt) : null;
+      const localGames = (localParsed && Array.isArray(localParsed.games)) ? localParsed.games.length : 0;
+      const fbGames = Array.isArray(fbData.games) ? fbData.games.length : 0;
       const fbIsNewer = !localDate || (fbDate && fbDate > localDate);
-      if (fbIsNewer) {
+      // Prefer the cloud when it's newer, OR when the local copy looks empty/poisoned
+      // (0 games) while the cloud has a real season. The second case prevents a stale
+      // empty localStorage — with a misleadingly-recent timestamp — from hiding good
+      // cloud data on every refresh (and from later being pushed back, wiping the cloud).
+      const localLooksEmpty = localGames === 0 && fbGames > 0;
+      if (fbIsNewer || localLooksEmpty) {
         window._applyFirebaseData(fbData);
         try { localStorage.setItem(STORAGE_KEY, JSON.stringify(fbData)); } catch(e) {}
       } else {
-        // Local is newer — push local data to Firebase to keep them in sync
+        // Local is genuinely newer and has data — push it to keep the cloud in sync.
         try {
           const localData = JSON.parse(localRaw);
           if (window.saveToFirebase) window.saveToFirebase(localData);
