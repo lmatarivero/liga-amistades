@@ -12,4 +12,4 @@ compatibility_date = "2024-11-01"
 #  Settings → Functions → KV namespace bindings → variable name LIGA_KV.)
 [[kv_namespaces]]
 binding = "LIGA_KV"
-id = "REPLACE_WITH_KV_NAMESPACE_ID"
+id = "b68282b1c59c4f6e94ce2a7b093d0f93"
