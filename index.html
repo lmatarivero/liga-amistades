@@ -1888,6 +1888,15 @@ if (_viewParam === 'standings') {
           </label>
         </div>
         <div id="storage-status" style="font-family:var(--font-mono);font-size:0.65rem;color:var(--muted);margin-top:0.75rem;letter-spacing:0.05em;"></div>
+
+        <div style="margin-top:1rem;padding-top:1rem;border-top:1px dashed var(--border);">
+          <label class="s-label">Restaurar respaldo automático (nube)</label>
+          <div style="display:flex;gap:0.5rem;align-items:center;">
+            <select id="backup-select" style="flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--text);font-family:var(--font-mono);font-size:0.8rem;padding:0.5rem;outline:none;cursor:pointer;"></select>
+            <button class="btn btn-outline" style="white-space:nowrap;" onclick="restoreCloudBackup()">Restaurar</button>
+          </div>
+          <div style="font-family:var(--font-mono);font-size:0.62rem;color:var(--muted);margin-top:0.5rem;line-height:1.5;">Respaldo diario automático · se conservan los últimos 30 días.</div>
+        </div>
       </div>
 
       <div class="s-field" style="margin-top:1.5rem;padding-top:1.25rem;border-top:1px solid var(--red);">
@@ -2979,6 +2988,7 @@ function openSettings() {
   document.getElementById('settings-backdrop').classList.add('open');
   document.getElementById('settings-panel').classList.add('open');
   loadSettingsUI();
+  if (typeof loadBackupList === 'function') loadBackupList();
 }
 
 function closeSettings() {
@@ -4412,6 +4422,43 @@ function loadFromStorage() {
   } catch(e) {
     console.error('Error loading from storage:', e);
     return false;
+  }
+}
+
+// Cloud auto-backups: list available daily snapshots and restore a chosen one.
+async function loadBackupList() {
+  const sel = document.getElementById('backup-select');
+  if (!sel) return;
+  sel.innerHTML = '<option value="">Cargando…</option>';
+  try {
+    const res = await fetch('/api/data?list=1', { cache: 'no-store' });
+    const dates = res.ok ? await res.json() : [];
+    if (!Array.isArray(dates) || !dates.length) {
+      sel.innerHTML = '<option value="">(sin respaldos aún)</option>';
+      return;
+    }
+    sel.innerHTML = dates.map(d => `<option value="${d}">${d}</option>`).join('');
+  } catch (e) {
+    sel.innerHTML = '<option value="">(error al cargar)</option>';
+  }
+}
+
+async function restoreCloudBackup() {
+  const sel = document.getElementById('backup-select');
+  const date = sel && sel.value;
+  if (!date) { showToast('Selecciona un respaldo'); return; }
+  if (!confirm(`¿Restaurar el respaldo del ${date}? Se reemplazarán los datos actuales (el estado actual quedará como respaldo de 1 paso).`)) return;
+  try {
+    const res = await fetch('/api/data?backup=' + encodeURIComponent(date), { cache: 'no-store' });
+    const data = res.ok ? await res.json() : null;
+    if (!data || data.version !== 1) { showToast('Respaldo inválido'); return; }
+    window._applyFirebaseData(data);
+    saveToStorage();
+    if (window.saveToFirebase) { const raw = localStorage.getItem(STORAGE_KEY); if (raw) window.saveToFirebase(JSON.parse(raw)); }
+    showToast(`✓ Respaldo del ${date} restaurado`);
+  } catch (e) {
+    console.error('Restore backup error:', e);
+    showToast('Error al restaurar respaldo');
   }
 }
 
