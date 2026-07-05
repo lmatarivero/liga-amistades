@@ -4433,11 +4433,12 @@ async function loadBackupList() {
   try {
     const res = await fetch('/api/data?list=1', { cache: 'no-store' });
     const dates = res.ok ? await res.json() : [];
+    const safeOpt = '<option value="__safe__">🛟 Última copia con juegos</option>';
     if (!Array.isArray(dates) || !dates.length) {
-      sel.innerHTML = '<option value="">(sin respaldos aún)</option>';
+      sel.innerHTML = safeOpt;
       return;
     }
-    sel.innerHTML = dates.map(d => `<option value="${d}">${d}</option>`).join('');
+    sel.innerHTML = safeOpt + dates.map(d => `<option value="${d}">${d}</option>`).join('');
   } catch (e) {
     sel.innerHTML = '<option value="">(error al cargar)</option>';
   }
@@ -4447,15 +4448,17 @@ async function restoreCloudBackup() {
   const sel = document.getElementById('backup-select');
   const date = sel && sel.value;
   if (!date) { showToast('Selecciona un respaldo'); return; }
-  if (!confirm(`¿Restaurar el respaldo del ${date}? Se reemplazarán los datos actuales (el estado actual quedará como respaldo de 1 paso).`)) return;
+  const label = date === '__safe__' ? 'la última copia con juegos' : `el respaldo del ${date}`;
+  if (!confirm(`¿Restaurar ${label}? Se reemplazarán los datos actuales (el estado actual quedará como respaldo de 1 paso).`)) return;
   try {
-    const res = await fetch('/api/data?backup=' + encodeURIComponent(date), { cache: 'no-store' });
+    const query = date === '__safe__' ? '?safe=1' : '?backup=' + encodeURIComponent(date);
+    const res = await fetch('/api/data' + query, { cache: 'no-store' });
     const data = res.ok ? await res.json() : null;
     if (!data || data.version !== 1) { showToast('Respaldo inválido'); return; }
     window._applyFirebaseData(data);
     saveToStorage();
     if (window.saveToFirebase) { const raw = localStorage.getItem(STORAGE_KEY); if (raw) window.saveToFirebase(JSON.parse(raw)); }
-    showToast(`✓ Respaldo del ${date} restaurado`);
+    showToast(`✓ Restaurado: ${label}`);
   } catch (e) {
     console.error('Restore backup error:', e);
     showToast('Error al restaurar respaldo');

@@ -13,6 +13,7 @@
 
 const KEY = 'data';
 const PREV = 'data_previous';
+const SAFE_KEY = 'safe_last_games';
 const BACKUP_PREFIX = 'backup:';
 const KEEP_DAYS = 30;
 
@@ -50,7 +51,8 @@ export async function onRequestGet({ request, env }) {
 
   const backup = url.searchParams.get('backup');
   let key = KEY;
-  if (backup) key = BACKUP_PREFIX + backup;
+  if (url.searchParams.get('safe')) key = SAFE_KEY;
+  else if (backup) key = BACKUP_PREFIX + backup;
   else if (url.searchParams.get('prev')) key = PREV;
 
   const val = await env.LIGA_KV.get(key);
@@ -75,6 +77,13 @@ export async function onRequestPost({ request, env }) {
   // Daily snapshot: one per day, last save of the day wins.
   const dateKey = dateKeyFromSavedAt(parsed && parsed.savedAt);
   await env.LIGA_KV.put(BACKUP_PREFIX + dateKey, body);
+
+  // Safety net: retain the most recent state that actually HAD games. An empty
+  // games array (accidental wipe or a fresh reset) never overwrites this, so the
+  // last good season is always recoverable via GET ?safe=1.
+  if (parsed && Array.isArray(parsed.games) && parsed.games.length > 0) {
+    await env.LIGA_KV.put(SAFE_KEY, body);
+  }
 
   // Prune daily snapshots older than KEEP_DAYS (best-effort).
   try {
