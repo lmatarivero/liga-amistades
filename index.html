@@ -1890,19 +1890,28 @@ if (_viewParam === 'standings') {
         <div id="storage-status" style="font-family:var(--font-mono);font-size:0.65rem;color:var(--muted);margin-top:0.75rem;letter-spacing:0.05em;"></div>
       </div>
 
+      <div class="s-field" style="margin-top:1.5rem;padding-top:1.25rem;border-top:1px solid var(--red);">
+        <div class="settings-section-title" style="color:var(--red);">⚠ Zona de Peligro</div>
+        <p style="font-family:var(--font-mono);font-size:0.68rem;color:var(--muted);margin-bottom:0.75rem;line-height:1.6;">
+          Resetear la temporada borra <strong>todos los partidos</strong>, la <strong>tabla de posiciones</strong>, el <strong>bracket de playoffs</strong> y los <strong>horarios</strong>. Se conservan equipos, rosters, logos y configuración.<br><br>
+          Recomendado: exporta un backup antes. (El respaldo anterior en la nube permite deshacer una vez.)
+        </p>
+        <button class="btn btn-outline" style="width:100%;color:var(--red);border-color:var(--red);" onclick="resetSeason()">↺ Resetear temporada</button>
+      </div>
+
       <div class="s-field" style="margin-top:1.5rem;padding-top:1.25rem;border-top:1px solid var(--border);">
         <div class="settings-section-title">💾 Modo de Almacenamiento</div>
         <p style="font-family:var(--font-mono);font-size:0.7rem;color:var(--green);margin-bottom:1rem;line-height:1.5;font-weight:600;">
-          ✓ FIREBASE SYNC ACTIVADO
+          ✓ CLOUD SYNC ACTIVADO
         </p>
         <p style="font-family:var(--font-mono);font-size:0.68rem;color:var(--muted);margin-bottom:1rem;line-height:1.6;">
-          Tus datos se sincronizan en tiempo real con <strong>Firebase</strong> y se guardan localmente como respaldo.<br><br>
+          Tus datos se sincronizan con <strong>Cloudflare</strong> y se guardan localmente como respaldo.<br><br>
           <strong>Backup recomendado:</strong> Usa "Exportar JSON" periódicamente para guardar una copia de seguridad.
         </p>
         <div style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:0.75rem;margin-bottom:1rem;">
           <div style="font-family:var(--font-mono);font-size:0.65rem;color:var(--muted);letter-spacing:0.05em;margin-bottom:0.5rem;">NOTA TÉCNICA:</div>
           <div style="font-family:var(--font-mono);font-size:0.68rem;color:var(--muted);line-height:1.5;">
-            Firebase Cloud Sync está activo. Los datos se sincronizan en tiempo real con Firestore.
+            Cloud Sync activo vía Cloudflare Pages + Workers KV. Los datos se actualizan cada ~20s.
           </div>
         </div>
       </div>
@@ -3934,6 +3943,36 @@ function resetPlayoffs() {
   if (window.saveToFirebase) { const raw = localStorage.getItem(STORAGE_KEY); if (raw) window.saveToFirebase(JSON.parse(raw)); }
   renderPlayoffs();
   showToast('Bracket reseteado');
+}
+
+// Wipe all season data (games, standings, playoffs, horarios) while keeping the
+// league setup (teams, rosters, logos, styles, config, fichas). Destructive, so
+// it requires a typed confirmation. The cloud rolling backup allows a 1-step undo
+// via window.restorePreviousFromFirebase().
+function resetSeason() {
+  const n = games.length;
+  if (!confirm(`¿RESETEAR LA TEMPORADA?\n\nSe borrarán:\n• ${n} partido(s)\n• La tabla de posiciones (vuelve a cero)\n• El bracket de playoffs\n• Los horarios\n\nSe conservan: equipos, rosters, logos y configuración.\n\nRecomendado: exporta un backup antes de continuar.`)) return;
+  const typed = prompt('Escribe RESETEAR para confirmar el borrado de la temporada:');
+  if (typed == null || typed.trim().toUpperCase() !== 'RESETEAR') { showToast('Reseteo cancelado'); return; }
+
+  // Clear season data; keep teams/rosters/logos/styles/config/fichas.
+  games.length = 0;
+  Object.keys(playoffs).forEach(k => delete playoffs[k]);
+  Object.keys(horarios).forEach(k => delete horarios[k]);
+  rebuildStandingsFromGames(); // zeros every team's record
+
+  saveToStorage();
+  if (window.saveToFirebase) { const raw = localStorage.getItem(STORAGE_KEY); if (raw) window.saveToFirebase(JSON.parse(raw)); }
+
+  // Re-render every affected view. (The horarios tab is intentionally not
+  // rendered here — it auto-rebuilds a default when next opened, and rendering
+  // it now would re-scaffold and persist an empty schedule.)
+  renderStandings();
+  renderJornadas();
+  if (typeof renderPlayoffs === 'function') renderPlayoffs();
+  if (typeof populateForm === 'function') populateForm();
+
+  showToast('✓ Temporada reseteada. Puedes deshacer con el respaldo anterior.');
 }
 
 function renderPlayoffs() {
