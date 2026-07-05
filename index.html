@@ -393,6 +393,24 @@ if (_viewParam === 'standings') {
     transform: scale(1.1);
   }
 
+  /* HTML ficha (fast preview shown from standings; image only on demand) */
+  .ficha-html { background:#0a0a0f; padding:1.5rem 1.75rem; min-width:min(760px,88vw); }
+  .ficha-html-header { display:flex; align-items:center; gap:1.25rem; padding-bottom:1rem; border-bottom:2px solid #2a2a3d; margin-bottom:1.1rem; }
+  .ficha-html-header .logo, .ficha-html-header .logo-fallback {
+    width:88px; height:88px; border-radius:50%; object-fit:cover; flex-shrink:0;
+    border:4px solid var(--tc,#333);
+  }
+  .ficha-html-header .logo-fallback { display:flex; align-items:center; justify-content:center; font-weight:800; font-size:1.6rem; }
+  .ficha-html-title { font-family:'Montserrat',sans-serif; font-style:italic; font-weight:900; font-size:2.3rem; line-height:1; color:#f0f0f8; text-transform:uppercase; letter-spacing:0.01em; }
+  .ficha-html-grid { display:grid; grid-template-columns:1fr 1fr; gap:0.6rem; }
+  .ficha-player { display:flex; align-items:center; gap:0.85rem; padding:0.45rem 0.7rem; border:1px solid #2a2a3d; border-radius:8px; background:#13131a; }
+  .ficha-player img, .ficha-player .pf { width:52px; height:52px; border-radius:50%; object-fit:cover; border:2px solid #2a2a3d; flex-shrink:0; }
+  .ficha-player .pf { display:flex; align-items:center; justify-content:center; background:#1c1c27; color:#6b6b8a; font-weight:600; font-size:0.85rem; }
+  .ficha-player .num { font-weight:800; font-size:1.2rem; color:var(--tc,#4af); min-width:2.6ch; }
+  .ficha-player .pname { font-weight:600; color:#f0f0f8; font-size:0.95rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .ficha-modal-actions { position:sticky; bottom:0; display:flex; justify-content:center; gap:0.75rem; padding:0.9rem; background:var(--surface); border-top:1px solid var(--border); }
+  @media (max-width:640px){ .ficha-html-grid{ grid-template-columns:1fr; } .ficha-html-title{ font-size:1.5rem; } .ficha-html{ padding:1rem; } }
+
   .rd-pos { color: var(--green); }
   .rd-neg { color: var(--red); }
   .rd-zero { color: var(--muted); }
@@ -1849,7 +1867,11 @@ if (_viewParam === 'standings') {
 <div class="ficha-modal-backdrop" id="ficha-modal">
   <div class="ficha-modal-content" onclick="event.stopPropagation()">
     <button class="ficha-modal-close" onclick="closeFichaModal()">✕</button>
-    <img id="ficha-modal-img" src="" alt="Ficha del equipo">
+    <div id="ficha-modal-html" class="ficha-html"></div>
+    <img id="ficha-modal-img" src="" alt="Ficha del equipo" style="display:none;">
+    <div class="ficha-modal-actions">
+      <button class="btn btn-accent" onclick="downloadCurrentFicha()">⬇ Descargar imagen</button>
+    </div>
   </div>
 </div>
 
@@ -2455,7 +2477,7 @@ function renderStandings() {
   document.querySelectorAll('.clickable-team-name').forEach(el => {
     el.addEventListener('click', function() {
       const teamName = this.dataset.team;
-      generateTeamFichaByName(teamName);
+      showTeamFichaHTML(teamName);
     });
   });
 
@@ -4684,16 +4706,80 @@ async function generateTeamFichaByName(teamName) {
   }
 }
 
+// Team currently shown in the ficha modal (for on-demand image export).
+let _currentFichaTeam = null;
+
+// Show the team ficha as HTML — instant, no canvas/upload. Called from standings.
+function showTeamFichaHTML(teamName) {
+  const team = TEAMS.find(t => t.name === teamName);
+  if (!team) return;
+  const roster = rosters[teamName] || [];
+  if (roster.length === 0) { showToast('⚠ El equipo no tiene jugadores'); return; }
+
+  const style = TEAM_STYLES[teamName] || { bg: '#333', txt: '#fff', abbr: '?' };
+  const logo = teamLogos[teamName];
+  const players = [...roster].sort((a, b) => (parseInt(a.number) || 999) - (parseInt(b.number) || 999));
+  _currentFichaTeam = teamName;
+
+  const logoHtml = logo
+    ? `<img class="logo" src="${cldThumb(logo, 180)}">`
+    : `<div class="logo-fallback" style="background:${style.bg};color:${style.txt};">${(style.abbr || teamName.slice(0,2)).toUpperCase()}</div>`;
+
+  const rows = players.map(p => {
+    const initials = (p.name || '?').split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+    const av = p.photo
+      ? `<img src="${cldThumb(p.photo, 104)}" loading="lazy">`
+      : `<div class="pf">${initials}</div>`;
+    return `<div class="ficha-player">${av}<span class="num">#${p.number || '—'}</span><span class="pname">${p.name}</span></div>`;
+  }).join('');
+
+  const cont = document.getElementById('ficha-modal-html');
+  cont.style.setProperty('--tc', style.bg);
+  cont.innerHTML = `<div class="ficha-html-header">${logoHtml}<div class="ficha-html-title">${teamName}</div></div><div class="ficha-html-grid">${rows}</div>`;
+  document.getElementById('ficha-modal').classList.add('show');
+}
+
+// Generate the PNG image only when the user asks for it (download button).
+async function downloadCurrentFicha() {
+  const teamName = _currentFichaTeam;
+  if (!teamName) return;
+  const team = TEAMS.find(t => t.name === teamName);
+  if (!team) return;
+  const style = TEAM_STYLES[teamName] || { bg: '#333333', txt: '#ffffff' };
+  const logo = teamLogos[teamName];
+  const roster = rosters[teamName] || [];
+  if (roster.length === 0) { showToast('⚠ El equipo no tiene jugadores'); return; }
+  try {
+    showToast('⏳ Generando imagen...');
+    const players = [...roster].sort((a, b) => (parseInt(a.number) || 999) - (parseInt(b.number) || 999));
+    const fichaData = await generateFichaCanvas(teamName, style, logo, players);
+    const url = URL.createObjectURL(fichaData.blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${teamName.replace(/\s+/g, '_')}_Roster.png`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast('✓ Imagen descargada');
+  } catch (e) {
+    console.error('Error generating ficha image:', e);
+    showToast('⚠ Error al generar la imagen');
+  }
+}
+
 // Close ficha modal
 function closeFichaModal() {
   const modal = document.getElementById('ficha-modal');
   modal.classList.remove('show');
-  // Clean up blob URL
+  const html = document.getElementById('ficha-modal-html');
+  if (html) html.innerHTML = '';
   const img = document.getElementById('ficha-modal-img');
-  if (img.src.startsWith('blob:')) {
-    URL.revokeObjectURL(img.src);
+  if (img) {
+    if (img.src.startsWith('blob:')) URL.revokeObjectURL(img.src);
+    img.src = '';
   }
-  img.src = '';
+  _currentFichaTeam = null;
 }
 
 // Click on backdrop closes modal
