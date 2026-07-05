@@ -2001,6 +2001,7 @@ if (_viewParam === 'standings') {
         </div>
         <div id="roster-player-list"></div>
         <button class="btn btn-accent" style="width:100%;margin-top:0.75rem;" onclick="openAddPlayer()">+ Agregar jugador</button>
+        <button class="btn btn-outline" style="width:100%;margin-top:0.5rem;" onclick="saveRoster()">💾 Guardar y sincronizar roster</button>
         <button class="btn btn-generate-ficha" onclick="generateTeamFicha()">📸 Generar Ficha del Equipo</button>
         <!-- ADD/EDIT PLAYER FORM -->
         <div id="player-form" style="display:none;margin-top:1.25rem;padding:1rem;background:var(--surface2);border-radius:8px;border:1px solid var(--border);">
@@ -3423,6 +3424,16 @@ function deletePlayer(index) {
   if (window.saveToFirebase) { const raw = localStorage.getItem(STORAGE_KEY); if (raw) window.saveToFirebase(JSON.parse(raw)); }
 }
 
+// Explicit "save the whole roster" button — pushes the current roster to the
+// cloud and confirms. Individual add/delete already sync, but this gives a clear
+// manual commit and re-sync.
+function saveRoster() {
+  saveToStorage();
+  if (window.saveToFirebase) { const raw = localStorage.getItem(STORAGE_KEY); if (raw) window.saveToFirebase(JSON.parse(raw)); }
+  const n = (rosters[currentRosterTeam] || []).length;
+  showToast(`✓ Roster guardado y sincronizado (${n} jugador${n === 1 ? '' : 'es'})`);
+}
+
 function cancelPlayerForm() {
   document.getElementById('player-form').style.display = 'none';
   currentPlayerPhoto = null;
@@ -4530,6 +4541,9 @@ window._applyFirebaseData = function(data) {
   updateLeagueName();
   const titleEl = document.getElementById('standings-title-main');
   if (titleEl) titleEl.textContent = config.tournamentName || '';
+  // Keep the open roster editor in sync with incoming data, so the on-screen
+  // list can never show players that are no longer in memory.
+  if (currentRosterTeam && typeof renderPlayerList === 'function') renderPlayerList();
 };
 
 // ─── TEAM FICHA GENERATOR ────────────────────────────────────────────────────
