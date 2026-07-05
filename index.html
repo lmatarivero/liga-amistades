@@ -2656,6 +2656,7 @@ function confirmResult() {
   showToast(`${t1name} ${s1} — ${s2} ${t2name} | Guardado`);
   clearForm();
   saveToStorage();
+  if (window.saveToFirebase) { const raw = localStorage.getItem(STORAGE_KEY); if (raw) window.saveToFirebase(JSON.parse(raw)); }
 }
 
 // ─── JORNADAS ───────────────────────────────────────────────────────────────
@@ -2767,6 +2768,7 @@ function deleteGame(index) {
   renderStandings();
   renderJornadas();
   saveToStorage();
+  if (window.saveToFirebase) { const raw = localStorage.getItem(STORAGE_KEY); if (raw) window.saveToFirebase(JSON.parse(raw)); }
   showToast('✓ Juego eliminado');
 }
 
@@ -3031,7 +3033,10 @@ let _configSaveTimer = null;
 let _fbSaveTimer = null;
 function debouncedSave() {
   clearTimeout(_configSaveTimer);
-  _configSaveTimer = setTimeout(() => saveToStorage(), 800);
+  _configSaveTimer = setTimeout(() => {
+    saveToStorage();
+    if (window.saveToFirebase) { const raw = localStorage.getItem(STORAGE_KEY); if (raw) window.saveToFirebase(JSON.parse(raw)); }
+  }, 800);
 }
 
 function updateTournamentName() {
@@ -3054,6 +3059,7 @@ async function handleLeagueLogoUpload(e) {
     hint.style.display = 'none';
     document.getElementById('remove-league-logo').style.display = 'block';
     saveToStorage();
+    if (window.saveToFirebase) { const raw = localStorage.getItem(STORAGE_KEY); if (raw) window.saveToFirebase(JSON.parse(raw)); }
   } catch(err) {
     hint.textContent = 'Error al subir imagen';
     console.error(err);
@@ -3065,6 +3071,8 @@ function removeLeagueLogo() {
   document.getElementById('league-logo-preview').style.display = 'none';
   document.getElementById('league-logo-hint').style.display = 'block';
   document.getElementById('remove-league-logo').style.display = 'none';
+  saveToStorage();
+  if (window.saveToFirebase) { const raw = localStorage.getItem(STORAGE_KEY); if (raw) window.saveToFirebase(JSON.parse(raw)); }
 }
 
 // ── Team list ─────────────────────────────────────────────────────────────────
@@ -3202,6 +3210,7 @@ function saveTeamEdit() {
   closeTeamEditor();
   renderTeamList();
   saveToStorage();
+  if (window.saveToFirebase) { const raw = localStorage.getItem(STORAGE_KEY); if (raw) window.saveToFirebase(JSON.parse(raw)); }
   showToast(`✓ ${name} guardado`);
 }
 
@@ -3223,6 +3232,7 @@ function deleteTeam(index) {
   buildDropdown('team2');
   renderTeamList();
   saveToStorage();
+  if (window.saveToFirebase) { const raw = localStorage.getItem(STORAGE_KEY); if (raw) window.saveToFirebase(JSON.parse(raw)); }
   showToast(`Equipo eliminado`);
 }
 
@@ -3402,6 +3412,7 @@ function savePlayer() {
   cancelPlayerForm();
   renderPlayerList();
   saveToStorage();
+  if (window.saveToFirebase) { const raw = localStorage.getItem(STORAGE_KEY); if (raw) window.saveToFirebase(JSON.parse(raw)); }
   showToast(`✓ ${name} guardado`);
 }
 
@@ -3409,6 +3420,7 @@ function deletePlayer(index) {
   rosters[currentRosterTeam].splice(index, 1);
   renderPlayerList();
   saveToStorage();
+  if (window.saveToFirebase) { const raw = localStorage.getItem(STORAGE_KEY); if (raw) window.saveToFirebase(JSON.parse(raw)); }
 }
 
 function cancelPlayerForm() {
