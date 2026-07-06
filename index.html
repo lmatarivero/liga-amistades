@@ -1799,9 +1799,10 @@ if (_viewParam === 'standings') {
     <div class="section-header">
       <div class="section-title">Horarios <span>por Jornada</span></div>
       <div class="controls">
-        <select id="horario-jornada-select" onchange="renderHorario()" style="background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--text);font-family:var(--font-mono);font-size:0.8rem;padding:0.4rem 0.6rem;cursor:pointer;"></select>
+        <select id="horario-jornada-select" class="horarios-admin-only" onchange="renderHorario()" style="background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--text);font-family:var(--font-mono);font-size:0.8rem;padding:0.4rem 0.6rem;cursor:pointer;"></select>
         <button class="btn btn-outline horarios-admin-only" onclick="addCampoToHorario()">+ Campo</button>
-        <button class="btn btn-outline" onclick="exportHorarioImage()">&#11015; Exportar imagen</button>
+        <button class="btn btn-outline horarios-admin-only" onclick="exportHorarioImage()">&#11015; Exportar jornada</button>
+        <button class="btn btn-outline horarios-admin-only" onclick="exportCalendarImage()">&#11015; Exportar calendario</button>
       </div>
     </div>
     <div id="horario-display"></div>
@@ -3647,45 +3648,31 @@ function buildHorarioTable(j, data, campoIndices, isAdmin, maxSlots) {
   return table;
 }
 
-function renderHorario() {
-  const container = document.getElementById('horario-display');
-  if (!container) return;
-  const j = getSelectedHorarioJornada();
-
-  if (!horarios[j]) {
-    horarios[j] = getDefaultHorario();
-    saveToStorage();
-    if (window.saveToFirebase) { const raw = localStorage.getItem(STORAGE_KEY); if (raw) window.saveToFirebase(JSON.parse(raw)); }
-  }
-  const data = horarios[j];
-  const isAdmin = !document.documentElement.classList.contains('view-public') &&
+// Build the DOM for a single jornada's horario. allowAdmin=false forces a
+// read-only render (used by the public/cumulative view and image exports).
+function buildHorarioWrap(j, allowAdmin) {
+  const data = horarios[j] || getDefaultHorario();
+  const isAdmin = !!allowAdmin &&
+                  !document.documentElement.classList.contains('view-public') &&
                   !document.documentElement.classList.contains('view-admin-locked');
   const numCampos = data.campos.length;
   const maxSlots = Math.max(...data.campos.map(c => c.slots.length));
   const isMobile = window.innerWidth <= 600;
 
-  _horarioDropdownId = 0;
-  container.innerHTML = '';
-
-  // Wrapper for export capture
   const wrap = document.createElement('div');
-  wrap.id = 'horario-capture';
+  wrap.className = 'horario-wrap';
   wrap.style.cssText = 'background:var(--bg);border-radius:8px;';
 
-  // Title bar
   const titleBar = document.createElement('div');
   titleBar.className = 'horario-title-bar';
   titleBar.innerHTML = `<h2>JORNADA # ${j}</h2>`;
   wrap.appendChild(titleBar);
 
+  const allIndices = Array.from({length: numCampos}, (_, i) => i);
   if (isMobile && numCampos > 2) {
-    // Split campos into chunks of 2 for mobile
-    const allIndices = Array.from({length: numCampos}, (_, i) => i);
     for (let c = 0; c < allIndices.length; c += 2) {
       const chunk = allIndices.slice(c, c + 2);
-      const table = buildHorarioTable(j, data, chunk, isAdmin, maxSlots);
-      wrap.appendChild(table);
-      // Add gap between blocks (except after last)
+      wrap.appendChild(buildHorarioTable(j, data, chunk, isAdmin, maxSlots));
       if (c + 2 < allIndices.length) {
         const gap = document.createElement('div');
         gap.style.cssText = 'height:1rem;background:var(--bg);';
@@ -3693,18 +3680,49 @@ function renderHorario() {
       }
     }
   } else {
-    // Desktop: single table with all campos
-    const allIndices = Array.from({length: numCampos}, (_, i) => i);
     wrap.appendChild(buildHorarioTable(j, data, allIndices, isAdmin, maxSlots));
   }
 
-  // Footer
   const footer = document.createElement('div');
   footer.className = 'horario-footer';
   footer.textContent = 'LOS EQUIPOS NOMBRADOS DE SEGUNDO (ABAJO) SON HOME CLUB';
   wrap.appendChild(footer);
 
-  container.appendChild(wrap);
+  return wrap;
+}
+
+function renderHorario() {
+  const container = document.getElementById('horario-display');
+  if (!container) return;
+  const isPublic = document.documentElement.classList.contains('view-public');
+  _horarioDropdownId = 0;
+  container.innerHTML = '';
+
+  // Public view: show ALL jornadas stacked (cumulative), read-only.
+  if (isPublic) {
+    const jornadas = Object.keys(horarios).map(Number).filter(n => !isNaN(n)).sort((a, b) => a - b);
+    if (!jornadas.length) {
+      container.innerHTML = '<div class="empty-state">Aún no hay horarios publicados.</div>';
+      return;
+    }
+    jornadas.forEach((j, idx) => {
+      const w = buildHorarioWrap(j, false);
+      if (idx) w.style.marginTop = '1.5rem';
+      container.appendChild(w);
+    });
+    return;
+  }
+
+  // Admin view: edit one selected jornada at a time.
+  const j = getSelectedHorarioJornada();
+  if (!horarios[j]) {
+    horarios[j] = getDefaultHorario();
+    saveToStorage();
+    if (window.saveToFirebase) { const raw = localStorage.getItem(STORAGE_KEY); if (raw) window.saveToFirebase(JSON.parse(raw)); }
+  }
+  const w = buildHorarioWrap(j, true);
+  w.id = 'horario-capture'; // per-jornada export target
+  container.appendChild(w);
 }
 
 function buildTeamDisplay(teamName) {
@@ -3864,6 +3882,59 @@ function exportHorarioImage() {
     inputBackups.forEach(({span}) => span.remove());
     showToast('⚠ Error al exportar');
   });
+}
+
+// Export the whole calendar (every jornada with a horario) as one image.
+async function exportCalendarImage() {
+  const jornadas = Object.keys(horarios).map(Number).filter(n => !isNaN(n)).sort((a, b) => a - b);
+  if (!jornadas.length) { showToast('No hay horarios para exportar'); return; }
+  showToast('⏳ Generando calendario...');
+
+  // Build an off-screen container with all jornadas, read-only.
+  const temp = document.createElement('div');
+  temp.style.cssText = 'position:fixed;left:-99999px;top:0;width:1100px;background:#12121e;padding:20px;';
+  _horarioDropdownId = 90000;
+  jornadas.forEach((j, idx) => {
+    const w = buildHorarioWrap(j, false);
+    if (idx) w.style.marginTop = '24px';
+    temp.appendChild(w);
+  });
+  document.body.appendChild(temp);
+
+  // Force off-screen images to load before rasterizing.
+  const imgs = [...temp.querySelectorAll('img')];
+  imgs.forEach(im => { im.loading = 'eager'; });
+  await Promise.all(imgs.map(im => im.complete ? Promise.resolve() : new Promise(res => {
+    im.onload = im.onerror = res;
+    setTimeout(res, 4000); // safety cap
+  })));
+
+  try {
+    const canvas = await html2canvas(temp, { backgroundColor: '#12121e', scale: 2, useCORS: true });
+    const pad = 40;
+    const final = document.createElement('canvas');
+    final.width = canvas.width + pad * 2;
+    final.height = canvas.height + pad * 2;
+    const ctx = final.getContext('2d');
+    ctx.fillStyle = '#12121e';
+    ctx.fillRect(0, 0, final.width, final.height);
+    ctx.drawImage(canvas, pad, pad);
+    ctx.fillStyle = 'rgba(255,255,255,0.12)';
+    ctx.font = '24px sans-serif';
+    ctx.textAlign = 'right';
+    ctx.fillText('Liga Amistades', final.width - pad, final.height - 16);
+
+    const link = document.createElement('a');
+    link.download = 'calendario_completo.png';
+    link.href = final.toDataURL('image/png');
+    link.click();
+    showToast('✓ Calendario exportado');
+  } catch (e) {
+    console.error('Export calendar error:', e);
+    showToast('⚠ Error al exportar');
+  } finally {
+    if (temp.parentNode) document.body.removeChild(temp);
+  }
 }
 
 // ─── PLAYOFFS BRACKET ───────────────────────────────────────────────────────
