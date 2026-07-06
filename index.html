@@ -5045,42 +5045,46 @@ function loadImageWithFallback(src) {
 // ─── INIT ─────────────────────────────────────────────────────────────────────
 // Load: use whichever source (Firebase or localStorage) has the most recent data
 async function initData() {
-  const localLoaded = loadFromStorage();
-  if (localLoaded) {
-    rebuildStandingsFromGames();
-    renderJornadas();
-    populateForm();
-  }
+  // Parse the local cache once, safely — only for a timestamp comparison. We do
+  // NOT render from it up front: a stale/huge/broken localStorage must never be
+  // able to block or slow startup (that was the "no carga hasta limpiar
+  // localStorage" bug).
+  let localParsed = null, localDate = null;
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    localParsed = raw ? JSON.parse(raw) : null;
+    localDate = localParsed && localParsed.savedAt ? new Date(localParsed.savedAt) : null;
+  } catch (e) { localParsed = null; }
+
+  let done = false;
+
+  // Cloud-first: the shared source of truth, and small/fast (~40 KB).
   if (window.loadFromFirebase) {
-    const fbData = await window.loadFromFirebase();
-    if (fbData) {
-      const localRaw = localStorage.getItem(STORAGE_KEY);
-      let localParsed = null, localDate = null;
-      try {
-        localParsed = localRaw ? JSON.parse(localRaw) : null;
-        localDate = localParsed && localParsed.savedAt ? new Date(localParsed.savedAt) : null;
-      } catch(e) {}
+    let fbData = null;
+    try { fbData = await window.loadFromFirebase(); } catch (e) {}
+    if (fbData && fbData.version === 1) {
       const fbDate = fbData.savedAt ? new Date(fbData.savedAt) : null;
       const localGames = (localParsed && Array.isArray(localParsed.games)) ? localParsed.games.length : 0;
-      const fbGames = Array.isArray(fbData.games) ? fbData.games.length : 0;
-      const fbIsNewer = !localDate || (fbDate && fbDate > localDate);
-      // Prefer the cloud when it's newer, OR when the local copy looks empty/poisoned
-      // (0 games) while the cloud has a real season. The second case prevents a stale
-      // empty localStorage — with a misleadingly-recent timestamp — from hiding good
-      // cloud data on every refresh (and from later being pushed back, wiping the cloud).
-      const localLooksEmpty = localGames === 0 && fbGames > 0;
-      if (fbIsNewer || localLooksEmpty) {
-        window._applyFirebaseData(fbData);
-        try { localStorage.setItem(STORAGE_KEY, JSON.stringify(fbData)); } catch(e) {}
+      const localIsNewer = !!(localDate && fbDate && localDate > fbDate);
+      // Keep local ONLY if it is genuinely newer AND actually has games (real
+      // offline edits). Otherwise the cloud wins — an empty/stale local copy can
+      // never hide the cloud or block the load.
+      if (localIsNewer && localGames > 0) {
+        try { window._applyFirebaseData(localParsed); } catch (e) { console.error(e); }
+        if (window.saveToFirebase) { try { window.saveToFirebase(localParsed); } catch (e) {} }
       } else {
-        // Local is genuinely newer and has data — push it to keep the cloud in sync.
-        try {
-          const localData = JSON.parse(localRaw);
-          if (window.saveToFirebase) window.saveToFirebase(localData);
-        } catch(e) {}
+        window._applyFirebaseData(fbData);
+        try { localStorage.setItem(STORAGE_KEY, JSON.stringify(fbData)); } catch (e) {}
       }
+      done = true;
     }
   }
+
+  // Fallback only if the cloud is unreachable: render from the local cache.
+  if (!done && localParsed) {
+    try { window._applyFirebaseData(localParsed); } catch (e) { console.error('local fallback failed', e); }
+  }
+
   _fbSyncReady = true;
   // Seed the sync watermark from whatever we ended up with locally, so the
   // 20s poller only ever applies STRICTLY newer remote data.
