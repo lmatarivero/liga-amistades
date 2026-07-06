@@ -3737,7 +3737,11 @@ function buildTeamSelect(selected, j, ci, si, field, usedTeams) {
   const uid = `hdd-${_horarioDropdownId++}`;
   const logoHtml = selected ? makeLogoEl(selected, true) : '<div class="team-logo team-logo-sm" style="background:var(--surface2);color:var(--muted);">?</div>';
   const label = selected || 'Seleccionar equipo';
-  const labelStyle = selected ? '' : 'color:var(--muted);font-weight:400;';
+  // Selected team name uses the same .team-name style as the public view so the
+  // sizes match; the placeholder stays small/muted.
+  const labelHtml = selected
+    ? `<span class="team-name">${label}</span>`
+    : `<span style="color:var(--muted);font-weight:400;">${label}</span>`;
 
   // Build options
   let optsHtml = '';
@@ -3753,7 +3757,7 @@ function buildTeamSelect(selected, j, ci, si, field, usedTeams) {
 
   return `<div class="custom-select-wrap horario-edit-controls" style="width:100%;">
     <div class="custom-select-btn" id="btn-${uid}" onclick="toggleHorarioDropdown('${uid}',event)" style="padding:0.4rem 0.6rem;font-size:0.78rem;">
-      ${logoHtml}<span style="${labelStyle}">${label}</span><span class="chevron">&#9660;</span>
+      ${logoHtml}${labelHtml}<span class="chevron">&#9660;</span>
     </div>
     <div class="custom-select-dropdown" id="dd-${uid}">${optsHtml}</div>
   </div>`;
