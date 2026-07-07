@@ -21,7 +21,10 @@ const PREV = 'data_previous';
 const SAFE_KEY = 'safe_last_games';
 const BACKUP_PREFIX = 'backup:';
 const KEEP_DAYS = 30;
-const DATA_TTL = 20; // seconds the main GET is cached at the edge
+// Seconds the main GET is cached at the edge. Data changes rarely, so a long TTL
+// keeps almost all viewer reads on the edge (off KV). A POST always purges this
+// cache, so saves still propagate (immediately in the saving colo; ≤TTL elsewhere).
+const DATA_TTL = 300;
 
 const CORS = { 'Access-Control-Allow-Origin': '*' };
 const NOSTORE_HEADERS = { 'Content-Type': 'application/json', ...CORS, 'Cache-Control': 'no-store' };

@@ -4325,7 +4325,7 @@ async function _pollCloud() {
     }
   } catch(e) { /* transient network error — retry next tick */ }
 }
-setInterval(_pollCloud, 30000);
+setInterval(_pollCloud, 60000);
 // Refresh immediately when the user returns to the tab (so re-focusing feels live
 // without needing a short interval that hammers KV in the background).
 if (typeof document !== 'undefined') {
