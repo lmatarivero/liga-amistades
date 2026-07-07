@@ -3844,7 +3844,10 @@ function exportHorarioImage() {
   hidden.forEach(e => e.style.display = 'none');
   // Make dropdown buttons look like plain text (remove border/bg)
   const btns = el.querySelectorAll('.custom-select-btn');
-  btns.forEach(b => { b.dataset.oldStyle = b.style.cssText; b.style.cssText += 'border:none;background:transparent;padding:0.4rem 0.6rem;cursor:default;'; });
+  btns.forEach(b => { b.dataset.oldStyle = b.style.cssText; b.style.cssText += 'border:none;background:transparent;padding:0.4rem 0.6rem;cursor:default;font-size:1.2rem;'; });
+  // Pin team-name size inline so html2canvas doesn't inherit the button's small size
+  const names = el.querySelectorAll('.team-name');
+  names.forEach(n => { n.dataset.oldStyle = n.style.cssText; n.style.fontSize = '1.2rem'; n.style.fontWeight = '800'; });
   // Replace time inputs with plain text
   const inputs = el.querySelectorAll('.horario-time-input');
   const inputBackups = [];
@@ -3859,6 +3862,7 @@ function exportHorarioImage() {
   html2canvas(el, { backgroundColor: '#12121e', scale: 2, useCORS: true }).then(canvas => {
     hidden.forEach(e => e.style.display = '');
     btns.forEach(b => { b.style.cssText = b.dataset.oldStyle || ''; });
+    names.forEach(n => { n.style.cssText = n.dataset.oldStyle || ''; });
     inputBackups.forEach(({span}) => span.remove());
 
     const pad = 40;
@@ -3883,6 +3887,7 @@ function exportHorarioImage() {
   }).catch(() => {
     hidden.forEach(e => e.style.display = '');
     btns.forEach(b => { b.style.cssText = b.dataset.oldStyle || ''; });
+    names.forEach(n => { n.style.cssText = n.dataset.oldStyle || ''; });
     inputBackups.forEach(({span}) => span.remove());
     showToast('⚠ Error al exportar');
   });
@@ -3904,6 +3909,9 @@ async function exportCalendarImage() {
     temp.appendChild(w);
   });
   document.body.appendChild(temp);
+
+  // Pin team-name size inline so the exported image matches the on-screen size.
+  temp.querySelectorAll('.team-name').forEach(n => { n.style.fontSize = '1.2rem'; n.style.fontWeight = '800'; });
 
   // Force off-screen images to load before rasterizing.
   const imgs = [...temp.querySelectorAll('img')];
