@@ -4308,6 +4308,9 @@ window.loadFromFirebase = async function() {
 // end of initData() so an older cloud copy can never overwrite newer local data.
 async function _pollCloud() {
   if (!_fbSyncReady) return;
+  // Skip polling while the tab is hidden/backgrounded — a left-open viewer tab
+  // would otherwise keep reading KV every tick and burn the free-tier quota.
+  if (typeof document !== 'undefined' && document.hidden) return;
   try {
     const res = await fetch(API_URL, { cache: 'no-store' });
     if (!res.ok) return;
@@ -4322,7 +4325,12 @@ async function _pollCloud() {
     }
   } catch(e) { /* transient network error — retry next tick */ }
 }
-setInterval(_pollCloud, 20000);
+setInterval(_pollCloud, 30000);
+// Refresh immediately when the user returns to the tab (so re-focusing feels live
+// without needing a short interval that hammers KV in the background).
+if (typeof document !== 'undefined') {
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) _pollCloud(); });
+}
 
 // ─── CLOUDINARY ──────────────────────────────────────────────────────────────
 
