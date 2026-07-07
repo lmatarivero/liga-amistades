@@ -875,6 +875,48 @@ if (_viewParam === 'standings') {
   .game-team-cell { display: flex; align-items: center; gap: 0.6rem; }
   .game-team-cell span { font-family: var(--font-body); }
 
+  /* ─── SCORE SHEET (calendar-driven results entry) ─── */
+  .score-sheet-row {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-left: 3px solid transparent;
+    border-radius: 8px;
+    margin-bottom: 0.75rem;
+    overflow: hidden;
+  }
+  .score-sheet-row.played { border-left-color: #84FA8A; }
+  .score-sheet-row.row-error { border-color: #FA8484; box-shadow: 0 0 0 1px #FA8484 inset; }
+  .ss-line {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    padding: 0.5rem 0.85rem;
+  }
+  .ss-line + .ss-line { border-top: 1px solid var(--border); }
+  .score-input {
+    width: 64px;
+    background: transparent;
+    border: none;
+    border-left: 1px solid var(--border);
+    padding: 0 0.75rem;
+    font-size: 1.7rem;
+    text-align: center;
+    color: var(--text);
+    font-family: var(--font-display);
+    outline: none;
+    -moz-appearance: textfield;
+  }
+  .score-input::-webkit-outer-spin-button,
+  .score-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+  .score-sheet-caption {
+    font-family: var(--font-mono);
+    font-size: 0.62rem;
+    color: var(--muted);
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    margin-top: 0.5rem;
+  }
+
   .game-score {
     font-family: var(--font-mono);
     font-size: 1.5rem;
@@ -1684,7 +1726,7 @@ if (_viewParam === 'standings') {
   <div class="logo">Liga<span> Amistades</span></div>
   <nav>
     <button class="active" onclick="showTab('standings', this)">Tabla</button>
-    <button onclick="showTab('enter', this)">+ Resultado</button>
+    <button onclick="showTab('enter', this)">Cargar</button>
     <button onclick="showTab('jornadas', this)">Jornadas</button>
     <button onclick="showTab('horarios', this)">Horarios</button>
     <button onclick="showTab('playoffs', this)">Playoffs</button>
@@ -1737,48 +1779,19 @@ if (_viewParam === 'standings') {
     </div>
   </div>
 
-  <!-- ENTER RESULT TAB -->
+  <!-- ENTER RESULT TAB (calendar-driven score sheet) -->
   <div class="tab-content" id="tab-enter">
     <div class="section-header">
-      <div class="section-title">Nuevo <span>Resultado</span></div>
+      <div class="section-title">Cargar <span>Resultados</span></div>
+      <div class="controls">
+        <select id="score-jornada-select" onchange="renderScoreSheet()" style="background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--text);font-family:var(--font-mono);font-size:0.8rem;padding:0.4rem 0.6rem;cursor:pointer;"></select>
+      </div>
     </div>
     <div class="form-card">
-      <div class="field" style="margin-bottom:1.5rem">
-        <label>Jornada</label>
-        <select id="jornada-select" style="background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--text);font-family:var(--font-mono);font-size:0.9rem;padding:0.6rem 0.75rem;width:100%;outline:none;appearance:none;cursor:pointer;"></select>
-      </div>
-      <!-- MLB-style scoreboard input -->
-      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;overflow:visible;margin-bottom:1.5rem;">
-        <!-- Team 1 row -->
-        <div style="display:grid;grid-template-columns:1fr auto;align-items:center;padding:0.75rem 1rem;border-bottom:1px solid var(--border);position:relative;overflow:visible;">
-          <div class="custom-select-wrap" style="max-width:280px;">
-            <div class="custom-select-btn" id="btn-team1" onclick="toggleDropdown('team1', event)">
-              <div class="team-logo team-logo-sm" id="logo-team1"></div>
-              <span id="label-team1">Seleccionar equipo</span>
-              <span class="chevron">▼</span>
-            </div>
-            <div class="custom-select-dropdown" id="dd-team1"></div>
-          </div>
-          <input type="number" id="score1" min="0" placeholder="0"
-            style="width:70px;background:transparent;border:none;border-left:1px solid var(--border);padding:0 1rem;font-size:1.8rem;text-align:center;color:var(--text);font-family:var(--font-display);outline:none;-moz-appearance:textfield;">
-        </div>
-        <!-- Team 2 row -->
-        <div style="display:grid;grid-template-columns:1fr auto;align-items:center;padding:0.75rem 1rem;position:relative;overflow:visible;">
-          <div class="custom-select-wrap" style="max-width:280px;">
-            <div class="custom-select-btn" id="btn-team2" onclick="toggleDropdown('team2', event)">
-              <div class="team-logo team-logo-sm" id="logo-team2"></div>
-              <span id="label-team2">Seleccionar equipo</span>
-              <span class="chevron">▼</span>
-            </div>
-            <div class="custom-select-dropdown" id="dd-team2"></div>
-          </div>
-          <input type="number" id="score2" min="0" placeholder="0"
-            style="width:70px;background:transparent;border:none;border-left:1px solid var(--border);padding:0 1rem;font-size:1.8rem;text-align:center;color:var(--text);font-family:var(--font-display);outline:none;-moz-appearance:textfield;">
-        </div>
-      </div>
-      <div class="form-footer">
-        <button class="btn btn-accent" onclick="previewResult()">Vista previa →</button>
-        <button class="btn btn-outline" onclick="cancelEdit()">Limpiar</button>
+      <div id="score-sheet-list"></div>
+      <div class="score-sheet-caption">El equipo nombrado de segundo (abajo) es HOME club</div>
+      <div class="form-footer" style="margin-top:1.25rem;">
+        <button class="btn btn-accent" onclick="saveScoreSheet()">Guardar jornada</button>
       </div>
     </div>
   </div>
@@ -1824,43 +1837,7 @@ if (_viewParam === 'standings') {
 
 </main>
 
-<!-- PREVIEW MODAL -->
-<div class="modal-backdrop" id="modal">
-  <div class="modal">
-    <div class="modal-title">Vista Previa</div>
-    <div class="preview-jornada" id="preview-jornada-label"></div>
-    <!-- Vertical scoreboard matching entry format -->
-    <div class="game-preview">
-      <div style="display:grid;grid-template-columns:1fr auto;align-items:center;padding:0.85rem 1rem;border-bottom:1px solid var(--border);">
-        <div style="display:flex;align-items:center;gap:0.6rem;" id="preview-t1"></div>
-        <div class="preview-score" id="preview-s1"></div>
-      </div>
-      <div style="display:grid;grid-template-columns:1fr auto;align-items:center;padding:0.85rem 1rem;">
-        <div style="display:flex;align-items:center;gap:0.6rem;" id="preview-t2"></div>
-        <div class="preview-score" id="preview-s2"></div>
-      </div>
-    </div>
-    <div class="changes-title">Cambios en la tabla</div>
-    <table class="changes-table" id="changes-table">
-      <thead>
-        <tr>
-          <th>Equipo</th>
-          <th class="num">PTS</th>
-          <th class="num">G</th>
-          <th class="num">P</th>
-          <th class="num">E</th>
-          <th class="num">RS</th>
-          <th class="num">RA</th>
-        </tr>
-      </thead>
-      <tbody id="changes-body"></tbody>
-    </table>
-    <div class="modal-footer">
-      <button class="btn btn-outline" onclick="closeModal()">Cancelar</button>
-      <button class="btn btn-accent" onclick="confirmResult()">Confirmar ✓</button>
-    </div>
-  </div>
-</div>
+<!-- (preview modal removed — results are entered via the calendar score sheet) -->
 
 <div class="toast" id="toast"></div>
 
@@ -2504,6 +2481,7 @@ let selectedTeam2 = null;
 
 function buildDropdown(which) {
   const dd = document.getElementById(`dd-${which}`);
+  if (!dd) return; // entry-form team dropdowns were removed (calendar score sheet now)
   dd.innerHTML = '';
   [...TEAMS].sort((a, b) => a.name.localeCompare(b.name)).forEach(t => {
     const div = document.createElement('div');
@@ -2546,6 +2524,7 @@ function selectTeam(which, name) {
   else selectedTeam2 = name;
   const s = TEAM_STYLES[name] || { bg: '#333', txt: '#fff', abbr: '?' };
   const logoEl = document.getElementById(`logo-${which}`);
+  if (!logoEl) return; // entry-form removed
   logoEl.style.background = s.bg;
   logoEl.style.color = s.txt;
   logoEl.textContent = s.abbr;
@@ -2553,144 +2532,137 @@ function selectTeam(which, name) {
 }
 
 function populateForm() {
-  buildDropdown('team1');
-  buildDropdown('team2');
-  const jorn = document.getElementById('jornada-select');
-  for (let j = 1; j <= 8; j++) {
-    jorn.innerHTML += `<option value="${j}">Jornada ${j}</option>`;
-  }
-  const maxJ = games.length > 0 ? Math.max(...games.map(g => g.jornada)) : 0;
-  jorn.value = Math.min(maxJ + 1, 8);
+  // Entry is now the calendar-driven score sheet.
+  if (document.getElementById('score-jornada-select')) populateScoreJornadaSelect();
 }
 
-function clearForm() {
-  document.getElementById('score1').value = '';
-  document.getElementById('score2').value = '';
-  selectedTeam1 = null;
-  selectedTeam2 = null;
-  ['team1','team2'].forEach(w => {
-    const logo = document.getElementById(`logo-${w}`);
-    logo.style.background = '';
-    logo.style.color = '';
-    logo.textContent = '';
-    document.getElementById(`label-${w}`).textContent = 'Seleccionar equipo';
+// ─── SCORE SHEET (calendar-driven results entry) ─────────────────────────────
+
+// Index in `games` for a matchup, matched by jornada + unordered team pair.
+function findGameIndex(j, a, b) {
+  return games.findIndex(g =>
+    g.jornada === j &&
+    ((g.t1 === a && g.t2 === b) || (g.t1 === b && g.t2 === a)));
+}
+
+// Flat list of a jornada's matchups from the calendar (skips empty/TBD slots).
+function getScoreSheetMatchups(j) {
+  const data = horarios[j];
+  if (!data || !data.campos) return [];
+  const out = [];
+  data.campos.forEach(c => (c.slots || []).forEach(s => {
+    if (s.visitor && s.home) out.push({ visitor: s.visitor, home: s.home });
+  }));
+  return out;
+}
+
+function populateScoreJornadaSelect() {
+  const sel = document.getElementById('score-jornada-select');
+  if (!sel) return;
+  const jornadas = Object.keys(horarios).map(Number).filter(n => !isNaN(n)).sort((a, b) => a - b);
+  const prev = sel.value;
+  sel.innerHTML = jornadas.map(j => `<option value="${j}">Jornada ${j}</option>`).join('');
+  if (prev && jornadas.includes(Number(prev))) sel.value = prev;
+}
+
+function getSelectedScoreJornada() {
+  const sel = document.getElementById('score-jornada-select');
+  const v = sel ? parseInt(sel.value) : NaN;
+  return isNaN(v) ? null : v;
+}
+
+function renderScoreSheet() {
+  const list = document.getElementById('score-sheet-list');
+  if (!list) return;
+  populateScoreJornadaSelect();
+  const j = getSelectedScoreJornada();
+  if (j == null) {
+    list.innerHTML = `<div class="empty-state"><div class="empty-icon">🗓️</div>No hay horario cargado. Crea el calendario en Horarios primero.</div>`;
+    return;
+  }
+  const matchups = getScoreSheetMatchups(j);
+  if (!matchups.length) {
+    list.innerHTML = `<div class="empty-state"><div class="empty-icon">⚾</div>Esta jornada no tiene partidos definidos.</div>`;
+    return;
+  }
+  list.innerHTML = matchups.map(m => {
+    let vScore = '', hScore = '';
+    const idx = findGameIndex(j, m.visitor, m.home);
+    if (idx >= 0) {
+      const g = games[idx];
+      if (g.t1 === m.visitor) { vScore = g.s1; hScore = g.s2; }
+      else                    { vScore = g.s2; hScore = g.s1; } // g.t1 === m.home
+    }
+    const played = idx >= 0;
+    return `
+      <div class="score-sheet-row${played ? ' played' : ''}" data-jornada="${j}" data-visitor="${m.visitor}" data-home="${m.home}">
+        <div class="ss-line">
+          <div class="game-team-cell">${makeLogoEl(m.visitor, true)}<span class="team-name">${m.visitor}</span></div>
+          <input type="number" class="score-input score-visitor" min="0" inputmode="numeric" placeholder="–" value="${vScore}">
+        </div>
+        <div class="ss-line home">
+          <div class="game-team-cell">${makeLogoEl(m.home, true)}<span class="team-name">${m.home}</span></div>
+          <input type="number" class="score-input score-home" min="0" inputmode="numeric" placeholder="–" value="${hScore}">
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function saveScoreSheet() {
+  const rows = [...document.querySelectorAll('#score-sheet-list .score-sheet-row')];
+  if (!rows.length) { showToast('No hay partidos para guardar'); return; }
+
+  // Phase 1: validate every row first (all-or-nothing).
+  const ops = [];
+  let invalid = false;
+  rows.forEach(row => {
+    row.classList.remove('row-error');
+    const j = parseInt(row.dataset.jornada);
+    const visitor = row.dataset.visitor;
+    const home = row.dataset.home;
+    const vRaw = row.querySelector('.score-visitor').value.trim();
+    const hRaw = row.querySelector('.score-home').value.trim();
+    const vFilled = vRaw !== '', hFilled = hRaw !== '';
+    if (!vFilled && !hFilled) { ops.push({ action: 'delete', j, visitor, home }); return; }
+    if (vFilled !== hFilled) { row.classList.add('row-error'); invalid = true; return; }
+    const vs = Number(vRaw), hs = Number(hRaw);
+    if (!Number.isInteger(vs) || !Number.isInteger(hs) || vs < 0 || hs < 0) { row.classList.add('row-error'); invalid = true; return; }
+    ops.push({ action: 'upsert', j, visitor, home, s1: vs, s2: hs });
   });
-}
+  if (invalid) { showToast('⚠ Revisa los marcadores en rojo (ambos o ninguno, enteros ≥ 0)'); return; }
 
-function previewResult() {
-  const t1name = selectedTeam1;
-  const t2name = selectedTeam2;
-  const s1 = parseInt(document.getElementById('score1').value);
-  const s2 = parseInt(document.getElementById('score2').value);
-  const jornada = parseInt(document.getElementById('jornada-select').value);
-
-  if (!t1name || !t2name) { showToast('Selecciona ambos equipos'); return; }
-  if (t1name === t2name) { showToast('Selecciona dos equipos distintos'); return; }
-  if (isNaN(s1) || isNaN(s2)) { showToast('Ingresa ambos marcadores'); return; }
-  if (s1 < 0 || s2 < 0) { showToast('Los marcadores no pueden ser negativos'); return; }
-
-  pendingGame = { jornada, t1: t1name, s1, s2, t2: t2name };
-
-  // Fill modal
-  document.getElementById('preview-jornada-label').textContent = `Jornada ${jornada}`;
-  document.getElementById('preview-t1').innerHTML = makeLogoEl(t1name, true) + `<span class="preview-team-name">${t1name}</span>`;
-  document.getElementById('preview-t2').innerHTML = makeLogoEl(t2name, true) + `<span class="preview-team-name">${t2name}</span>`;
-  const ps1 = document.getElementById('preview-s1');
-  const ps2 = document.getElementById('preview-s2');
-  ps1.textContent = s1;
-  ps2.textContent = s2;
-  const isTie = s1 === s2;
-  ps1.className = 'preview-score ' + (isTie ? 'tie' : s1 > s2 ? 'win' : 'loss');
-  ps2.className = 'preview-score ' + (isTie ? 'tie' : s2 > s1 ? 'win' : 'loss');
-
-  // Compute changes
-  const t1 = TEAMS.find(t => t.name === t1name);
-  const t2 = TEAMS.find(t => t.name === t2name);
-
-  const changes = [];
-
-  function teamChanges(team, scored, allowed) {
-    const oldPTS = calcPTS(team);
-    const isWin = scored > allowed;
-    const isTie = scored === allowed;
-    const newW = team.w + (isWin ? 1 : 0);
-    const newL = team.l + (!isWin && !isTie ? 1 : 0);
-    const newT = team.t + (isTie ? 1 : 0);
-    const newRS = team.rs + scored;
-    const newRA = team.ra + allowed;
-    const newPTS = newW * 3 + newT;
-    return { name: team.name, oldPTS, newPTS, dW: newW - team.w, dL: newL - team.l, dT: newT - team.t, dRS: scored, dRA: allowed };
-  }
-
-  changes.push(teamChanges(t1, s1, s2));
-  changes.push(teamChanges(t2, s2, s1));
-
-  const tbody = document.getElementById('changes-body');
-  tbody.innerHTML = '';
-
-  changes.forEach(c => {
-    const ptsDiff = c.newPTS - c.oldPTS;
-    const ptsCls = ptsDiff > 0 ? 'change-up' : ptsDiff < 0 ? 'change-down' : 'change-same';
-    const ptsStr = ptsDiff > 0 ? `+${ptsDiff}` : `${ptsDiff}`;
-    tbody.innerHTML += `
-      <tr>
-        <td>${c.name}</td>
-        <td class="num ${ptsCls}">${c.oldPTS} → ${c.newPTS} <small>(${ptsStr})</small></td>
-        <td class="num change-up">${c.dW > 0 ? '+1' : '—'}</td>
-        <td class="num change-down">${c.dL > 0 ? '+1' : '—'}</td>
-        <td class="num">${c.dT > 0 ? '+1' : '—'}</td>
-        <td class="num">+${c.dRS}</td>
-        <td class="num">+${c.dRA}</td>
-      </tr>
-    `;
+  // Phase 2: apply — recompute index per op (splices shift indexes).
+  ops.forEach(op => {
+    const idx = findGameIndex(op.j, op.visitor, op.home);
+    if (op.action === 'delete') {
+      if (idx >= 0) games.splice(idx, 1);
+    } else {
+      const rec = { jornada: op.j, t1: op.visitor, s1: op.s1, t2: op.home, s2: op.s2 };
+      if (idx >= 0) games[idx] = rec; else games.push(rec);
+    }
   });
 
-  document.getElementById('modal').classList.add('open');
-}
-
-function closeModal() {
-  document.getElementById('modal').classList.remove('open');
-  pendingGame = null;
-}
-
-function confirmResult() {
-  if (!pendingGame) return;
-  const { jornada, t1: t1name, s1, s2, t2: t2name } = pendingGame;
-
-  const t1 = TEAMS.find(t => t.name === t1name);
-  const t2 = TEAMS.find(t => t.name === t2name);
-
-  const applyResult = (team, scored, allowed) => {
-    team.gp += 1;
-    team.rs += scored;
-    team.ra += allowed;
-    if (scored > allowed)      { team.w += 1; }
-    else if (scored === allowed){ team.t += 1; }
-    else                        { team.l += 1; }
-  };
-
-  if (editingGameIndex >= 0) {
-    // Editing existing game — replace it
-    games[editingGameIndex] = pendingGame;
-    editingGameIndex = -1;
-    document.getElementById('jornada-select').disabled = false;
-    document.querySelector('#tab-enter .form-footer .btn-accent').textContent = 'Vista previa →';
-  } else {
-    // New game
-    applyResult(t1, s1, s2);
-    applyResult(t2, s2, s1);
-    games.push(pendingGame);
-  }
-
-  closeModal();
+  // Phase 3: recompute standings + persist (never hand-adjust TEAMS).
   rebuildStandingsFromGames();
   renderStandings();
   renderJornadas();
-  showToast(`${t1name} ${s1} — ${s2} ${t2name} | Guardado`);
-  clearForm();
+  renderScoreSheet();
   saveToStorage();
   if (window.saveToFirebase) { const raw = localStorage.getItem(STORAGE_KEY); if (raw) window.saveToFirebase(JSON.parse(raw)); }
+  showToast('✓ Jornada guardada');
 }
+
+// From the Jornadas tab "Editar": jump to the score sheet for that jornada.
+function editJornada(j) {
+  showTab('enter', null);
+  const sel = document.getElementById('score-jornada-select');
+  populateScoreJornadaSelect();
+  if (sel) sel.value = String(j);
+  renderScoreSheet();
+}
+
+// (Old manual entry — previewResult/closeModal/confirmResult — removed.
+//  Results are now entered via the calendar score sheet: saveScoreSheet.)
 
 // ─── JORNADAS ───────────────────────────────────────────────────────────────
 
@@ -2743,7 +2715,7 @@ function renderJornadas() {
             <span class="game-score ${s2cls}">${g.s2}</span>
           </div>
           <div class="game-actions">
-            <button class="game-action-sm" onclick="editGame(${gIdx})">✏ Editar</button>
+            <button class="game-action-sm" onclick="editJornada(${g.jornada})">✏ Editar</button>
             <button class="game-action-sm danger" onclick="deleteGame(${gIdx})">✕ Eliminar</button>
           </div>
         </div>
@@ -2765,31 +2737,8 @@ function renderJornadas() {
   }
 }
 
-// ─── EDIT / DELETE GAME ──────────────────────────────────────────────────────
-
-let editingGameIndex = -1;
-
-function editGame(index) {
-  const g = games[index];
-  if (!g) return;
-
-  editingGameIndex = index;
-
-  // Switch to the Enter tab
-  showTab('enter', null);
-
-  // Fill the form with the game data
-  const jornadaSel = document.getElementById('jornada-select');
-  jornadaSel.value = g.jornada;
-  jornadaSel.disabled = true;
-  selectTeam('team1', g.t1);
-  selectTeam('team2', g.t2);
-  document.getElementById('score1').value = g.s1;
-  document.getElementById('score2').value = g.s2;
-
-  // Update button text
-  document.querySelector('#tab-enter .form-footer .btn-accent').textContent = 'Guardar cambios →';
-}
+// ─── DELETE GAME ─────────────────────────────────────────────────────────────
+// (Editing is done in the calendar score sheet via editJornada/saveScoreSheet.)
 
 function deleteGame(index) {
   const g = games[index];
@@ -2803,13 +2752,6 @@ function deleteGame(index) {
   saveToStorage();
   if (window.saveToFirebase) { const raw = localStorage.getItem(STORAGE_KEY); if (raw) window.saveToFirebase(JSON.parse(raw)); }
   showToast('✓ Juego eliminado');
-}
-
-function cancelEdit() {
-  editingGameIndex = -1;
-  document.getElementById('jornada-select').disabled = false;
-  document.querySelector('#tab-enter .form-footer .btn-accent').textContent = 'Vista previa →';
-  clearForm();
 }
 
 // ─── EXPORT IMAGE ────────────────────────────────────────────────────────────
@@ -2878,6 +2820,7 @@ function showTab(name, btn) {
   const btns = document.querySelectorAll('nav button');
   const map = { standings: 0, enter: 1, jornadas: 2, horarios: 3, playoffs: 4 };
   btns[map[name]].classList.add('active');
+  if (name === 'enter') { renderScoreSheet(); }
   if (name === 'horarios') { populateHorarioJornadaSelect(); renderHorario(); }
   if (name === 'playoffs') { initPlayoffsTitle(); renderPlayoffs(); }
 }
