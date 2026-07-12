@@ -1060,6 +1060,35 @@ if (_viewParam === 'standings') {
     border-top: none;
   }
 
+  /* Public mobile horarios: blocks by time, one game per line */
+  .ho-block { margin: 0 0 1rem; }
+  .ho-block-head {
+    font-family: var(--font-display);
+    font-size: 0.8rem; font-weight: 800; letter-spacing: 0.05em;
+    color: var(--accent);
+    padding: 0.5rem 0.25rem 0.55rem;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 0.5rem;
+  }
+  .ho-game-line {
+    display: flex; align-items: center; gap: 0.5rem;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 8px; padding: 0.55rem 0.6rem; margin-bottom: 0.45rem;
+  }
+  .ho-campo-tag {
+    font-family: var(--font-mono); font-size: 0.6rem; font-weight: 700;
+    color: var(--muted); border: 1px solid var(--border); border-radius: 5px;
+    padding: 0.12rem 0.35rem; flex-shrink: 0;
+  }
+  .ho-team { display: flex; align-items: center; gap: 0.4rem; flex: 1; min-width: 0; }
+  .ho-team.ho-home { justify-content: flex-end; }
+  .ho-team img, .ho-team .team-logo { width: 24px !important; height: 24px !important; font-size: 0.5rem !important; flex-shrink: 0; }
+  .ho-name {
+    font-family: var(--font-body); font-weight: 800; font-size: 0.9rem; color: var(--text);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .ho-vs { color: var(--muted); font-size: 0.7rem; flex-shrink: 0; }
+
   .horario-admin-btn {
     background: none;
     border: 1px dashed var(--border);
@@ -3611,27 +3640,67 @@ function buildHorarioWrap(j, allowAdmin) {
   titleBar.innerHTML = `<h2>JORNADA # ${j}</h2>`;
   wrap.appendChild(titleBar);
 
-  const allIndices = Array.from({length: numCampos}, (_, i) => i);
-  if (isMobile && numCampos > 2) {
-    for (let c = 0; c < allIndices.length; c += 2) {
-      const chunk = allIndices.slice(c, c + 2);
-      wrap.appendChild(buildHorarioTable(j, data, chunk, isAdmin, maxSlots));
-      if (c + 2 < allIndices.length) {
-        const gap = document.createElement('div');
-        gap.style.cssText = 'height:1rem;background:var(--bg);';
-        wrap.appendChild(gap);
-      }
-    }
+  const mobilePublic = isMobile && !isAdmin;
+  if (mobilePublic) {
+    // Public mobile: group games by time block, one game per line.
+    wrap.appendChild(buildHorarioMobileBlocks(j, data, maxSlots));
   } else {
-    wrap.appendChild(buildHorarioTable(j, data, allIndices, isAdmin, maxSlots));
+    const allIndices = Array.from({length: numCampos}, (_, i) => i);
+    if (isMobile && numCampos > 2) {
+      for (let c = 0; c < allIndices.length; c += 2) {
+        const chunk = allIndices.slice(c, c + 2);
+        wrap.appendChild(buildHorarioTable(j, data, chunk, isAdmin, maxSlots));
+        if (c + 2 < allIndices.length) {
+          const gap = document.createElement('div');
+          gap.style.cssText = 'height:1rem;background:var(--bg);';
+          wrap.appendChild(gap);
+        }
+      }
+    } else {
+      wrap.appendChild(buildHorarioTable(j, data, allIndices, isAdmin, maxSlots));
+    }
   }
 
   const footer = document.createElement('div');
   footer.className = 'horario-footer';
-  footer.textContent = 'LOS EQUIPOS NOMBRADOS DE SEGUNDO (ABAJO) SON HOME CLUB';
+  footer.textContent = mobilePublic
+    ? 'EL EQUIPO A LA DERECHA ES HOME CLUB'
+    : 'LOS EQUIPOS NOMBRADOS DE SEGUNDO (ABAJO) SON HOME CLUB';
   wrap.appendChild(footer);
 
   return wrap;
+}
+
+// Public mobile schedule: games grouped by time block (Primera/Segunda/Tercera
+// hora), one game per line — [campo] visitor  vs  home (home on the right).
+function buildHorarioMobileBlocks(j, data, maxSlots) {
+  const container = document.createElement('div');
+  container.className = 'ho-mobile';
+  for (let si = 0; si < maxSlots; si++) {
+    const lines = [];
+    let time = '';
+    data.campos.forEach((campo, ci) => {
+      const slot = campo.slots[si];
+      if (!slot) return;
+      if (!time && slot.time) time = slot.time;
+      if (slot.visitor && slot.home) {
+        lines.push(
+          `<div class="ho-game-line">` +
+            `<span class="ho-campo-tag">C${ci + 1}</span>` +
+            `<span class="ho-team">${makeLogoEl(slot.visitor, true)}<span class="ho-name">${slot.visitor}</span></span>` +
+            `<span class="ho-vs">vs</span>` +
+            `<span class="ho-team ho-home"><span class="ho-name">${slot.home}</span>${makeLogoEl(slot.home, true)}</span>` +
+          `</div>`
+        );
+      }
+    });
+    if (!lines.length) continue;
+    const block = document.createElement('div');
+    block.className = 'ho-block';
+    block.innerHTML = `<div class="ho-block-head">${time || ''} &nbsp;·&nbsp; ${SLOT_LABELS[si] || ('HORA ' + (si + 1))}</div>` + lines.join('');
+    container.appendChild(block);
+  }
+  return container;
 }
 
 function renderHorario() {
